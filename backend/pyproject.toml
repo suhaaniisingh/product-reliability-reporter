@@ -1,0 +1,20 @@
+[project]
+name = "trust-checker-backend"
+version = "0.1.0"
+description = "Backend API for the Social Commerce Trust Checker: returns evidence-based trust reports for online stores."
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]",
+]
+
+[tool.uv]
+# This is an application, not a library we publish, so uv doesn't need to build/install it as a package.
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
