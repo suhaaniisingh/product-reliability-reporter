@@ -76,3 +76,9 @@ One short entry per decision: what we chose, what else we considered, and why.
 - **Options:** feature branches + PRs, feature branches merged locally, or committing directly to `main`.
 - **Chose:** commit directly to `main` and push. No feature branches, no pull requests.
 - **Why:** Simplest workflow for a solo project, and learning the branch/PR process isn't a goal here. The tradeoff is that `main` has no buffer against half-finished work, so commits stay small and only go in once tests pass.
+
+## 2026-11-13: Web page styling: Tailwind CSS
+
+- **Options:** plain CSS (recommended at the time), Tailwind CSS, a component library (shadcn/ui, MUI).
+- **Chose:** Tailwind CSS v4 (via its Vite plugin).
+- **Why:** Utility classes are written directly in the JSX, so styling stays next to the markup it affects, and it's widely used in industry. Each class maps to a single CSS property (`px-4` = horizontal padding), so it still teaches the underlying CSS concepts, unlike a component library that hides them. Tailwind only ships the classes actually used, so the CSS stays small (~3 KB gzipped).

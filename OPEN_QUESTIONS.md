@@ -9,6 +9,10 @@ Things still undecided. Items are removed once resolved (and the decision record
 - Whether to show an overall score or only individual signals.
 - Exact scoring approach: how signals combine, and what triggers each overall level.
 
+## Engineering
+
+- **Web page tests:** none yet, since the page has no logic beyond sending a URL and displaying the result (backend tests cover validation). Add Vitest + React Testing Library when it grows logic worth testing?
+
 ## Data sources and cost
 
 - Which review sources are realistic given API terms and rate limits.
