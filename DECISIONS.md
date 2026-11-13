@@ -70,9 +70,9 @@ One short entry per decision: what we chose, what else we considered, and why.
 - **Chose:** `backend/app/` with `main.py` (creates the app), `schemas.py` (Pydantic request/report models), and `routes/` (one file per group of endpoints). A `signals/` package joins in Phase 2.
 - **Why:** It sets the pattern each signal module will follow, and avoids a reshuffle a few weeks in. Keeping the report contract in one file (`schemas.py`) makes it the single place to look when the shape changes.
 
-## 2026-11-12: Git workflow revised: feature branches, merged locally, no PRs
+## 2026-11-12: Git workflow revised: everything on `main`, no branches, no PRs
 
 - **Supersedes:** the 2026-11-11 feature branches + PRs decision.
-- **Options:** feature branches + PRs on GitHub, feature branches merged locally, or committing directly to `main`.
-- **Chose:** one branch per feature (e.g. `feature/web-page`), merged into `main` locally with `git merge --no-ff`, then `main` is pushed. No pull requests.
-- **Why:** Branches keep `main` always working and let failed experiments be thrown away. Learning the PR process isn't a goal, and with no reviewer on a solo project it adds steps without benefit. `--no-ff` creates a merge commit even when git could just move `main` forward, so the history still shows which commits belonged to which feature.
+- **Options:** feature branches + PRs, feature branches merged locally, or committing directly to `main`.
+- **Chose:** commit directly to `main` and push. No feature branches, no pull requests.
+- **Why:** Simplest workflow for a solo project, and learning the branch/PR process isn't a goal here. The tradeoff is that `main` has no buffer against half-finished work, so commits stay small and only go in once tests pass.
