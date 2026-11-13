@@ -69,3 +69,10 @@ One short entry per decision: what we chose, what else we considered, and why.
 - **Options:** a small package split by responsibility, or a single `main.py` until it hurts.
 - **Chose:** `backend/app/` with `main.py` (creates the app), `schemas.py` (Pydantic request/report models), and `routes/` (one file per group of endpoints). A `signals/` package joins in Phase 2.
 - **Why:** It sets the pattern each signal module will follow, and avoids a reshuffle a few weeks in. Keeping the report contract in one file (`schemas.py`) makes it the single place to look when the shape changes.
+
+## 2026-11-12: Git workflow revised: commit directly to `main`, no PRs
+
+- **Supersedes:** the 2026-11-11 feature branches + PRs decision.
+- **Options:** keep feature branches + PRs, or commit directly to `main` and push.
+- **Chose:** commit directly to `main` and push.
+- **Why:** Learning the PR workflow isn't a goal for this project, and for a solo repo the extra steps add overhead without a reviewer to benefit. The cost is that `main` can briefly hold half-finished work, so we keep commits small and only commit when tests pass.
