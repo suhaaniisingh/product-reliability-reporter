@@ -57,3 +57,15 @@ One short entry per decision: what we chose, what else we considered, and why.
 - **Options:** pytest + TestClient, manual testing only for now.
 - **Chose:** pytest with FastAPI's `TestClient`.
 - **Why:** `TestClient` calls the app in-process without starting a server, so tests are fast and need no setup. We start with a valid-URL test and an invalid-URL (422) test, then add tests per signal module as they're built.
+
+## 2026-11-12: API paths live under `/api`
+
+- **Options:** `/api/check`, bare `/check`, versioned `/api/v1/check`.
+- **Chose:** `/api/check` (all API routes under `/api`).
+- **Why:** FastAPI will also serve the React page at `/`, so a prefix keeps page routes and API routes from colliding, and the Vite dev proxy is a single rule ("forward `/api`"). Versioning (`/api/v1`) can be added when a breaking change actually needs it, e.g. once released extension versions depend on the current shape.
+
+## 2026-11-12: Backend layout: small `app` package
+
+- **Options:** a small package split by responsibility, or a single `main.py` until it hurts.
+- **Chose:** `backend/app/` with `main.py` (creates the app), `schemas.py` (Pydantic request/report models), and `routes/` (one file per group of endpoints). A `signals/` package joins in Phase 2.
+- **Why:** It sets the pattern each signal module will follow, and avoids a reshuffle a few weeks in. Keeping the report contract in one file (`schemas.py`) makes it the single place to look when the shape changes.

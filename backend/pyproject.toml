@@ -13,6 +13,8 @@ package = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Make `import app` work in tests by putting backend/ on the import path.
+pythonpath = ["."]
 
 [dependency-groups]
 dev = [

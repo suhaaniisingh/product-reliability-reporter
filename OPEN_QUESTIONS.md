@@ -4,6 +4,7 @@ Things still undecided. Items are removed once resolved (and the decision record
 
 ## Product
 
+- **URL input leniency:** the API currently rejects `example-store.com` (no `https://`). Should the API or the page add `https://` automatically, and should we strip tracking parameters (e.g. `?utm_source=tiktok`) before checking?
 - Product name.
 - Whether to show an overall score or only individual signals.
 - Exact scoring approach: how signals combine, and what triggers each overall level.
