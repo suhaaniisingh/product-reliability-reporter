@@ -113,7 +113,7 @@ def _alternatives(expected: str) -> list[str]:
 
 
 def match_text(expected: str, predicted: str | None, *, contains: bool = False) -> bool | None:
-    if expected.strip() == "*":
+    if "*" in _alternatives(expected):  # "*" or "Kyoto Leaf|*": anything goes, not scored
         return None
     if not expected.strip():
         return predicted is None or not predicted.strip()

@@ -21,6 +21,7 @@ def test_eval_csv_is_valid() -> None:
         ("", None, False, True),  # blank = must be null
         ("", "Nike", False, False),
         ("*", "anything", False, None),  # not scored
+        ("Kyoto Leaf|*", None, False, None),  # "*" among alternatives also means not scored
         ("Nike", None, False, False),
         ("matcha whisk set", "Matcha whisk set (bamboo)", True, True),  # product: containment allowed
         ("matcha whisk set", "Matcha whisk set (bamboo)", False, False),
