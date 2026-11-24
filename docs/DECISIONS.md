@@ -261,3 +261,32 @@ One short entry per decision: the date, what we chose, why, and the alternatives
 - **Options researched:** Render (free, no card, sleeps after 15 min with ~1 min wake-up), Railway (no card, but only $1/month credit), Fly.io (card needed), Google Cloud Run, the GitHub Student Pack (Heroku/Azure credits).
 - **Chose:** Google Cloud (Suhaani), so hosting sits in the same project as the Safe Browsing key. Service: **Cloud Run** (scales to zero, wakes in seconds), confirmed by Suhaani 2026-11-24.
 - **Billing:** Cloud Run needs a billing account (card). Its monthly free allowance is reported as 2M requests, 180,000 vCPU-seconds and 360,000 GiB-seconds per billing account (third-party sources; Google's pages couldn't be read from this environment), plus a $300 / 90-day credit for new customers. A budget alert is set before deploying.
+
+## 2026-11-24: The remaining trust-signal and deployment details (approved together)
+
+Suhaani approved all of these at once, before the build started.
+
+- **The page fetcher identifies itself** as `SocialCommerceReliabilityReporter/0.1`. It's an honest bot name with no contact link, so the developer's username doesn't appear in stores' logs (the alternative with a GitHub link was declined). It never pretends to be a browser.
+- **It respects `robots.txt`.** If a store disallows us, its page checks report "not checked" rather than fetching anyway.
+- **Fetch limits per store:** at most 4 pages (home, return policy, contact), 5 s and 2 MB per page, at most 3 redirects, standard ports only, every hop checked for public addresses (SSRF protection).
+- **Return policy and contact detection:** plain text and pattern matching in code: free, instant, deterministic. Having an LLM read policy pages stays in the backlog.
+- **Popularity data:** the Tranco list is downloaded when the container is built (refreshed on each deploy, no startup delay). The top 50,000 domains are kept, and the page credits Tranco.
+- **New libraries:** `tldextract` (registrable domain via the public suffix list, using its bundled snapshot so it works offline) and `beautifulsoup4` (HTML parsing).
+- **Scoring weights** (starting from 50; failed checks score 0 and lower confidence; clamped to 0–100):
+  - domain age: <30 d −20 · 30–180 d −10 · 6 mo–2 y 0 · 2–5 y +10 · >5 y +15
+  - popularity: top 10k +15 · 10k–50k +10 · not listed 0
+  - return policy: found +5, not found −10
+  - contact details: found +5, none −10
+  - Shopify: 0 (context only)
+  - combination: <90 days old with no return policy and no contact −10
+  - on Google's unsafe list: capped at 10
+- **Labels:** 70–100 "Higher trust", 40–69 "Mixed signals", 0–39 "Lower trust".
+- **Confidence:** high if all 5 checks ran, medium if 1 failed, low if 2+ failed or Safe Browsing failed. A store *guessed* from a brand name is still checked, but confidence is capped at medium and a note says the video may link elsewhere.
+- **Rate limits per IP:**
+  - caption scans: 10/min and 50/day
+  - store-link scans: 30/min and 200/day
+  - site-wide: 500 caption scans/day
+  - Per-minute limits use a token bucket (allows short bursts, holds the average rate); daily limits are plain counters.
+- **Web page:** score, label and confidence; the reasons with their points; expandable details per check; "Advisory provided by Google"; a one-line privacy note; the guessed-store warning.
+- **Deployment:** a single Dockerfile (builds the page and the API) built by Cloud Build, in `us-central1`, with min 0 / max 1 instances (caps cost and keeps the in-memory rate limits correct with one counting server), 512 MB, keys in Secret Manager, public on the default `*.run.app` address, manual deploy for now. Claude may enable the needed Google Cloud APIs, create the secrets, and deploy.
+- **Testing:** up to $0.50 of Claude spend; scans of a few well-known and smaller real stores plus Google's Safe Browsing test page, using only public pages and the limits above.
