@@ -394,7 +394,7 @@ def report(results: list[RowResult], split: str, dry_run: bool, model: str) -> s
         tokens = {k: sum(r.usage.get(k, 0) for r in results) for k in ("input", "cache_write", "cache_read", "output")}
         lines += [
             "| Cost and latency | Value |", "|---|---|",
-            f"| Cost per caption (as measured when each answer was made) | ${total / len(results):.4f} |",
+            f"| Cost per caption (as measured when each answer was made) | ${total / len(results):.5f} |",
             f"| Spent in this run (answers reused from the eval cache cost nothing) | ${spent:.4f} |",
             f"| Tokens: full-price in / cache write / cache read / out | {tokens['input']:,} / {tokens['cache_write']:,} / {tokens['cache_read']:,} / {tokens['output']:,} |",
             f"| Mean / max latency per caption | {statistics.mean(times):.2f}s / {max(times):.2f}s |" if times

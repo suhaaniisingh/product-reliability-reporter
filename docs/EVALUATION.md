@@ -83,3 +83,45 @@ Regression check on the original `test` split (no longer a clean held-out number
 **Not measured yet:**
 - real (non-synthetic) captions
 - how often a guessed domain is real but wrong (the eval only has well-known brands for guesses)
+
+## Cost optimisation (2026-11-24)
+
+**Where the input went.** Measured with the free token-counting endpoint, per request: answer schema ~1,040 tokens (57%), system prompt ~734 (40%), the caption itself ~62 (3%). Most of the first ~$1 of API spend came from repeated eval runs.
+
+**Changes**, accuracy checked after each:
+1. **Each rule stated once.** The schema no longer carries field descriptions, and Python docstrings no longer leak into it. Input 1,836 → 1,294 tokens; 1,330 after the suffix fix below. About 670 of these are fixed structured-output overhead that can't be removed.
+2. **Prompt caching** on the system prompt. The whole rules + schema prefix (1,234 tokens) is read from cache on later calls within 5 minutes, at 5% of the input price.
+3. **Eval answer cache:** unchanged rows cost nothing to re-run; any prompt change invalidates. The script also asks before spending.
+4. **Batch API** for evals (half price).
+
+| | Before | After |
+|---|---|---|
+| Input tokens per call (full price) | ~1,700 | ~42 + ~1,234 cached |
+| Cost per caption, live (Sonnet 5.5) | $0.0045 | $0.0018 (measured on 8 live calls, including the first cache write) |
+| Full 43–45-row eval run | ~$0.19 | ~$0.03 (batch + cache); $0 for unchanged rows |
+
+**Regression found and fixed along the way:** the trimmed prompt lost hashtag brands whose domain adds words (`#sunveil` + sunveilshop.com). Two dev rows (c44, c45) reproduce it, and the prompt was fixed on dev (27/27). The old `test` row c02 (`#cozyknit` + cozyknitco.com) still misses 5/5 on Sonnet. "Cozy knit" also reads as a generic description, so this is a different ambiguity, and it wasn't tuned on (it's a test row).
+
+## Model comparison: Sonnet 5.5 vs Haiku 5.5 (2026-11-24)
+
+Same prompt, settings and rows (45). Accuracy from one batch run per model; latency from 8 live calls each (test2).
+
+| | Sonnet 5.5 | Haiku 5.5 |
+|---|---|---|
+| All fields correct, all 45 rows | **98% (44/45)** | 93% (42/45) |
+| All fields correct, held-out test2 | **100% (8/8)** | 88% (7/8) |
+| Store correct, all rows | **100%** | 98% (missed one guess: Hydro Flask → no store returned) |
+| Wrong store returned (false-store rate) | 0% | 0% |
+| Live cost per caption | $0.0018 | **$0.0001 (~16× cheaper)** |
+| Latency, mean / max | 1.71 s / 2.52 s | **1.51 s / 2.25 s** |
+
+Haiku's misses:
+- c07: product left empty on a brand-story post
+- c34: hashtag-only brand `#verdantleafco` missed
+- c38: no domain guessed for Hydro Flask
+
+Every Haiku error is a *missing* answer, never a wrong store. Small sample: 2–3 rows separate the models.
+
+```bash
+cd backend && uv run python -m scripts.eval_extraction --split all --model claude-haiku-5-5
+```

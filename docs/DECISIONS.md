@@ -212,3 +212,15 @@ One short entry per decision: the date, what we chose, why, and the alternatives
 - **Chose (Suhaani):** leave reviews out (Trustpilot stays in the backlog in case a free key exists). Add **Tranco**, a research ranking of popular sites updated daily, as a fifth signal. Keep the **top 50,000** domains, downloaded once a day and looked up locally (no key, no rate limit, small enough for a free host's memory).
 - **Scoring:** being on the list adds points with the rank as the reason. Not being on it scores 0, never a penalty, because most honest small shops aren't on it either.
 - **Caveat:** one of Tranco's input rankings (Cloudflare Radar) is licensed CC BY-NC (non-commercial). Fine for a portfolio project; revisit if the project is ever commercial.
+
+## 2026-11-24: Cut LLM cost: state each rule once, cache the prompt, cheap evals
+
+- **Context:** about $1 had been spent, mostly on repeated eval runs. Measured: 97% of every request was the same system prompt and answer schema; the caption was ~60 tokens.
+- **Chose (Suhaani approved options 1–4):**
+  1. An eval answer cache plus a confirmation step before any paid call.
+  2. Each prompt rule stated once (no schema descriptions, no docstrings leaking into the schema).
+  3. Prompt caching with an explicit marker on the system prompt. Top-level automatic caching would key the cache on the varying caption.
+  4. The Batch API for evals.
+- **Result:** live cost per caption $0.0045 → $0.0018; an eval run ~$0.19 → ~$0.03, or $0 for unchanged rows. Accuracy kept on dev and test2 after fixing one regression (see EVALUATION.md).
+- **Caveat on caching in production:** a cache write costs 1.25× and expires after 5 minutes. With sparse traffic, caching can cost slightly more than no caching. Measure with real traffic in Phase 5 before deciding whether to keep it there.
+- **Implementation note:** batch mode builds its schema with the SDK's internal `to_json_output_format` helper, so it is byte-identical to `messages.parse()`. A test locks this in, in case an SDK update moves the helper.
