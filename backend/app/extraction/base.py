@@ -11,33 +11,21 @@ gives us three things:
 
 from typing import Literal, Protocol
 
-from pydantic import BaseModel, Field
-
-from app.schemas import Confidence
+from pydantic import BaseModel
 
 
+# What the model must return. The rules for each field live in prompt.py, stated once.
+# No docstring and no Field descriptions here on purpose: Pydantic would put them in
+# the JSON schema, and the schema is sent with every request (paid input tokens).
 class LLMExtraction(BaseModel):
-    """What the model must return. The descriptions are sent to the model as part
-    of the JSON schema, so they double as instructions."""
-
-    product: str | None = Field(description="The product being promoted, or null if none is clear.")
-    brand: str | None = Field(description="The brand or store name, or null if none is named.")
-    store_url: str | None = Field(
-        description=(
-            "The store's domain. If the caption contains it, copy it exactly as written. "
-            "If not, but a brand is named, give that brand's official domain if you know it. "
-            "Otherwise null."
-        )
-    )
-    store_url_source: Literal["in_caption", "guessed_from_brand", "none"] = Field(
-        description="Where store_url came from: in_caption, guessed_from_brand, or none if store_url is null."
-    )
-    mentions_link_in_bio: bool = Field(description="True if the caption points to a link in the creator's bio or profile.")
-    discount_code: str | None = Field(description="A discount code if one is given, else null.")
-    confidence: Confidence = Field(
-        description="How sure you are that store_url is the store actually being promoted: high, medium, or low."
-    )
-    notes: str = Field(description="One short sentence explaining anything ambiguous. Empty string if nothing is.")
+    product: str | None
+    brand: str | None
+    store_url: str | None
+    store_url_source: Literal["in_caption", "guessed_from_brand", "none"]
+    mentions_link_in_bio: bool
+    discount_code: str | None
+    confidence: Literal["high", "medium", "low"]  # a Literal, not the Confidence enum, whose docstring would be sent too
+    notes: str
 
 
 class ExtractionError(Exception):

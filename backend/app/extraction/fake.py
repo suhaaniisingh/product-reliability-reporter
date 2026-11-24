@@ -1,7 +1,6 @@
 """A stand-in extractor for tests (and the walking skeleton): no network, no cost."""
 
 from app.extraction.base import LLMExtraction
-from app.schemas import Confidence
 
 PLACEHOLDER = LLMExtraction(
     product=None,
@@ -10,7 +9,7 @@ PLACEHOLDER = LLMExtraction(
     store_url_source="none",
     mentions_link_in_bio=False,
     discount_code=None,
-    confidence=Confidence.LOW,
+    confidence="low",
     notes="Placeholder result: the real extractor isn't connected yet.",
 )
 

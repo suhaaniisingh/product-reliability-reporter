@@ -59,7 +59,7 @@ async def apply_rules(
         llm=llm,
         store_url=None,
         source=StoreUrlSource(llm.store_url_source),
-        confidence=llm.confidence,
+        confidence=Confidence(llm.confidence),
         notes=[llm.notes] if llm.notes else [],
     )
 

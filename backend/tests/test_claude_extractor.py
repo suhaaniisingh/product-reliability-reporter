@@ -13,7 +13,7 @@ import anthropic
 import httpx2
 import pytest
 
-from app.extraction.base import ExtractionError, ExtractorNotConfigured
+from app.extraction.base import ExtractionError, ExtractorNotConfigured, LLMExtraction
 from app.extraction.claude import MODEL, ClaudeExtractor
 
 # Async tests run through anyio's pytest plugin (installed with FastAPI).
@@ -54,6 +54,8 @@ async def test_valid_reply_is_parsed_and_request_uses_approved_settings() -> Non
     assert "fallbacks" not in body  # stable API only (fallback removed 2026-11-23)
     # The caption is wrapped in delimiters, marking it as untrusted data.
     assert body["messages"][0]["content"].startswith("<caption>\n")
+    # The rules + schema prefix is marked for prompt caching (it's identical on every call).
+    assert body["system"][0]["cache_control"] == {"type": "ephemeral"}
 
 
 async def test_guessed_domain_comes_back_marked() -> None:
@@ -95,3 +97,15 @@ async def test_missing_api_key_raises_not_configured(monkeypatch: pytest.MonkeyP
 
     with pytest.raises(ExtractorNotConfigured):
         await ClaudeExtractor().extract("some caption")
+
+
+def test_batch_params_match_the_live_request() -> None:
+    """The eval's batch mode must send the same prompt and schema as the live API."""
+    from app.extraction.claude import build_batch_params, build_request
+
+    live, batch = build_request("caption"), build_batch_params("caption")
+
+    assert {k: v for k, v in batch.items() if k != "output_config"} == {k: v for k, v in live.items() if k != "output_config"}
+    assert batch["output_config"]["effort"] == "low"
+    assert batch["output_config"]["format"]["type"] == "json_schema"
+    assert set(batch["output_config"]["format"]["schema"]["properties"]) == set(LLMExtraction.model_fields)

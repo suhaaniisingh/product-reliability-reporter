@@ -29,6 +29,36 @@ TIMEOUT_SECONDS = 30.0
 MAX_RETRIES = 2  # the SDK retries 408/409/429/5xx and connection errors with backoff
 
 
+def build_request(caption: str, model: str = MODEL) -> dict:
+    """The request body for one caption, minus the answer format.
+
+    Shared by the live extractor and the eval's batch mode, so both send exactly the
+    same prompt (and therefore hit the same prompt cache and get the same behaviour).
+    """
+    return {
+        "model": model,
+        "max_tokens": MAX_TOKENS,
+        # Cache marker on the system prompt: the rules + answer schema are identical
+        # on every call, so calls within 5 minutes read them from the cache at 5% of
+        # the input price. (Top-level automatic caching would put the marker after the
+        # caption, which differs every time, so nothing would ever be reused.)
+        "system": [{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
+        "messages": [{"role": "user", "content": build_user_message(caption)}],
+        "output_config": {"effort": "low"},
+    }
+
+
+def build_batch_params(caption: str, model: str = MODEL) -> dict:
+    """build_request() plus the JSON answer format, for the Message Batches API
+    (which has no parse() helper). Uses the SDK's own schema conversion, so the
+    schema is byte-identical to what messages.parse() sends."""
+    from anthropic.lib._parse._transform import to_json_output_format  # SDK-internal; tested
+
+    params = build_request(caption, model)
+    params["output_config"] = {**params["output_config"], "format": to_json_output_format(LLMExtraction)}
+    return params
+
+
 class ClaudeExtractor:
     def __init__(
         self,
@@ -54,14 +84,7 @@ class ClaudeExtractor:
         client = self._get_client()
         started = time.perf_counter()
         try:
-            response = await client.messages.parse(
-                model=self._model,
-                max_tokens=MAX_TOKENS,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": build_user_message(caption)}],
-                output_format=LLMExtraction,
-                output_config={"effort": "low"},
-            )
+            response = await client.messages.parse(**build_request(caption, self._model), output_format=LLMExtraction)
         except anthropic.APITimeoutError as error:
             raise ExtractionError("The extraction service timed out.") from error
         except anthropic.APIConnectionError as error:
@@ -74,9 +97,11 @@ class ClaudeExtractor:
             raise ExtractionError("The extraction service returned output in an unexpected shape.") from error
 
         seconds = time.perf_counter() - started
+        usage = response.usage
         logger.info(
-            "extraction model=%s stop=%s in=%s out=%s %.2fs",
-            response.model, response.stop_reason, response.usage.input_tokens, response.usage.output_tokens, seconds,
+            "extraction model=%s stop=%s in=%s cache_write=%s cache_read=%s out=%s %.2fs",
+            response.model, response.stop_reason, usage.input_tokens, usage.cache_creation_input_tokens,
+            usage.cache_read_input_tokens, usage.output_tokens, seconds,
         )
         if self._on_response is not None:
             self._on_response(response, seconds)
