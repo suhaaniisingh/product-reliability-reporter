@@ -142,7 +142,18 @@ The cases where the user supplies their own store link don't involve the LLM, so
 
 ## Phase 4: Chrome extension (outline)
 
-- **Planned feature (2026-11-24):** read the brand and product from the visible video frame. On click, the extension captures the tab (`chrome.tabs.captureVisibleTab`, `activeTab` permission), crops to the video, and sends it to `/api/scan`, where Claude reads packaging, logos and on-screen text. Check TikTok's and Instagram's terms first; never store the images.
+- **Stage 4a: one-click scan.** Read the brand and product from the visible video frame. On click, the extension captures the tab (`chrome.tabs.captureVisibleTab`, `activeTab` permission), crops to the video, and sends it to `/api/scan`, where Claude reads packaging, logos and on-screen text. Check TikTok's and Instagram's terms first; never store the images.
+- **Stage 4b: session recorder (Suhaani's idea, 2026-11-24).**
+  - **Flow:** Start → while recording, collect evidence from each page the user visits themselves (the reel's frame and caption, the brand profile's bio and link when the user opens it, the store pages they click through to) → Stop → the server combines the evidence (Claude reads the frames and text, link-back verification, the five checks, score) and writes a summary grounded in the reasons.
+  - **Why it helps:** the user clicking the bio link replaces guessing or searching for the store.
+  - **Constraints to settle first:**
+    - the platforms' "automated collection" terms (recording only after the user starts it; minimal fields; nothing stored);
+    - privacy (only Instagram, TikTok and click-through stores; a visible indicator; auto-stop; frames cropped to the video);
+    - broad host permissions requested only at Start (`chrome.permissions.request`);
+    - page structure that changes often (prefer frames plus vision over reading page elements);
+    - cost (~$0.003 per frame, with a per-session cap);
+    - desktop Chrome only.
+  - **Order:** build 4b on top of 4a.
 
 - **Decisions I'll propose:**
   - the permissions needed, with an explanation of each
