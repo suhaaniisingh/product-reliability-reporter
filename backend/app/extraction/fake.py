@@ -28,3 +28,19 @@ class FakeExtractor:
         if self.error is not None:
             raise self.error
         return self.result
+
+
+class FakeResolver:
+    """A DomainResolver with fixed answers: domains in `missing` don't exist,
+    domains in `unknown` can't be checked, everything else exists."""
+
+    def __init__(self, missing: set[str] | None = None, unknown: set[str] | None = None) -> None:
+        self.missing = missing or set()
+        self.unknown = unknown or set()
+        self.calls: list[str] = []
+
+    async def exists(self, domain: str) -> bool | None:
+        self.calls.append(domain)
+        if domain in self.unknown:
+            return None
+        return domain not in self.missing

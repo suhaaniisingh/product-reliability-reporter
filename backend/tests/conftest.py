@@ -1,7 +1,8 @@
 """Shared test setup.
 
-Every test gets a FakeExtractor in place of the real one, so no test can reach a
-live LLM by accident. Tests that need a specific result swap in their own fake.
+Every test gets a FakeExtractor and a FakeResolver in place of the real ones, so no
+test can reach a live LLM or real DNS by accident. Tests that need specific answers
+change the fakes' settings.
 """
 
 from collections.abc import Iterator
@@ -9,8 +10,8 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
-from app.dependencies import get_extractor
-from app.extraction.fake import FakeExtractor
+from app.dependencies import get_domain_resolver, get_extractor
+from app.extraction.fake import FakeExtractor, FakeResolver
 from app.main import app
 
 
@@ -26,7 +27,13 @@ def fake_extractor() -> FakeExtractor:
 
 
 @pytest.fixture
-def client(fake_extractor: FakeExtractor) -> Iterator[TestClient]:
+def fake_resolver() -> FakeResolver:
+    return FakeResolver()
+
+
+@pytest.fixture
+def client(fake_extractor: FakeExtractor, fake_resolver: FakeResolver) -> Iterator[TestClient]:
     app.dependency_overrides[get_extractor] = lambda: fake_extractor
+    app.dependency_overrides[get_domain_resolver] = lambda: fake_resolver
     yield TestClient(app)
     app.dependency_overrides.clear()

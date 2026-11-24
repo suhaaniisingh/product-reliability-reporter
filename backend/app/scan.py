@@ -4,7 +4,9 @@ Kept separate from the HTTP route so it can be tested (and later reused by the
 Chrome extension's flow or a job queue) without going through FastAPI.
 """
 
-from app.extraction.base import Extractor, LLMExtraction
+from app.extraction.base import Extractor
+from app.extraction.domain_check import DomainResolver
+from app.extraction.postprocess import apply_rules
 from app.extraction.video_url import parse_video_url
 from app.schemas import Confidence, Extraction, ScanRequest, ScanResponse, StoreUrlSource
 
@@ -22,20 +24,7 @@ def _from_store_url_only(store_url: str) -> Extraction:
     )
 
 
-def _from_llm(llm: LLMExtraction) -> Extraction:
-    return Extraction(
-        product=llm.product,
-        brand=llm.brand,
-        store_url=llm.store_url,
-        store_url_source=StoreUrlSource(llm.store_url_source),
-        mentions_link_in_bio=llm.mentions_link_in_bio,
-        discount_code=llm.discount_code,
-        confidence=llm.confidence,
-        notes=llm.notes,
-    )
-
-
-async def run_scan(request: ScanRequest, extractor: Extractor) -> ScanResponse:
+async def run_scan(request: ScanRequest, extractor: Extractor, resolver: DomainResolver) -> ScanResponse:
     video = parse_video_url(str(request.video_url)) if request.video_url is not None else None
 
     if request.caption is None:
@@ -43,12 +32,6 @@ async def run_scan(request: ScanRequest, extractor: Extractor) -> ScanResponse:
         assert request.store_url is not None
         return ScanResponse(video=video, extraction=_from_store_url_only(request.store_url))
 
-    extraction = _from_llm(await extractor.extract(request.caption))
-
-    if request.store_url is not None:
-        # The user's own link beats anything extracted or guessed.
-        extraction.store_url = request.store_url
-        extraction.store_url_source = StoreUrlSource.USER_PROVIDED
-        extraction.confidence = Confidence.HIGH
-
+    llm_result = await extractor.extract(request.caption)
+    extraction = await apply_rules(llm_result, request.caption, resolver, user_store_url=request.store_url)
     return ScanResponse(video=video, extraction=extraction)

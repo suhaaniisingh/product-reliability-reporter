@@ -29,7 +29,7 @@ def test_caption_runs_the_extractor(client: TestClient, fake_extractor: FakeExtr
 
     assert response.status_code == 200
     extraction = response.json()["extraction"]
-    assert extraction["store_url"] == "glowlab.co"
+    assert extraction["store_url"] == "https://glowlab.co"  # checked against the caption, then normalized
     assert extraction["store_url_source"] == "in_caption"
     assert extraction["discount_code"] == "GLOW20"
     # Surrounding whitespace is stripped before the caption reaches the extractor.
@@ -56,6 +56,7 @@ def test_user_store_url_beats_the_extracted_one(client: TestClient, fake_extract
     assert extraction["store_url"] == "https://glowlab-official.com"
     assert extraction["store_url_source"] == "user_provided"
     assert extraction["product"] == "vitamin C serum"  # still extracted from the caption
+    assert "glowlab.co" in extraction["notes"]  # the mismatch is flagged, not hidden
 
 
 @pytest.mark.parametrize(
