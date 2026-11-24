@@ -6,7 +6,7 @@ The extractor is always a FakeExtractor (see conftest.py), so these run offline.
 import pytest
 from fastapi.testclient import TestClient
 
-from app.extraction.base import ExtractionError, LLMExtraction
+from app.extraction.base import ExtractionError, ExtractorNotConfigured, LLMExtraction
 from app.extraction.fake import FakeExtractor
 from app.schemas import MAX_CAPTION_CHARS
 
@@ -94,3 +94,10 @@ def test_video_url_is_parsed_without_a_network_call(client: TestClient) -> None:
 
 def test_video_is_null_without_a_video_url(client: TestClient) -> None:
     assert client.post("/api/scan", json={"store_url": "glowlab.co"}).json()["video"] is None
+
+
+def test_missing_api_key_returns_503_but_store_link_scans_still_work(client: TestClient, fake_extractor: FakeExtractor) -> None:
+    fake_extractor.error = ExtractorNotConfigured("Extraction isn't configured: set ANTHROPIC_API_KEY in backend/.env.")
+
+    assert client.post("/api/scan", json={"caption": "serum at glowlab.co"}).status_code == 503
+    assert client.post("/api/scan", json={"store_url": "glowlab.co"}).status_code == 200

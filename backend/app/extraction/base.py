@@ -47,5 +47,9 @@ class ExtractionError(Exception):
     """
 
 
+class ExtractorNotConfigured(Exception):
+    """The extractor is missing its setup (e.g. no API key). The route returns a 503."""
+
+
 class Extractor(Protocol):
     async def extract(self, caption: str) -> LLMExtraction: ...

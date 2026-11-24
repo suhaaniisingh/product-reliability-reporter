@@ -1,0 +1,19 @@
+{
+  "id": "msg_fixture",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-5-5",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"product\": \"running shoes\", \"brand\": \"Nike\", \"store_url\": \"nike.com\", \"store_url_source\": \"guessed_from_brand\", \"mentions_link_in_bio\": false, \"discount_code\": null, \"confidence\": \"medium\", \"notes\": \"No link in the caption; official domain guessed from the brand.\"}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+    "input_tokens": 612,
+    "output_tokens": 180
+  }
+}

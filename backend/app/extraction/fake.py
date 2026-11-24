@@ -1,6 +1,6 @@
 """A stand-in extractor for tests (and the walking skeleton): no network, no cost."""
 
-from app.extraction.base import ExtractionError, LLMExtraction
+from app.extraction.base import LLMExtraction
 from app.schemas import Confidence
 
 PLACEHOLDER = LLMExtraction(
@@ -18,7 +18,7 @@ PLACEHOLDER = LLMExtraction(
 class FakeExtractor:
     """Returns a fixed result (or raises), and records every caption it receives."""
 
-    def __init__(self, result: LLMExtraction = PLACEHOLDER, error: ExtractionError | None = None) -> None:
+    def __init__(self, result: LLMExtraction = PLACEHOLDER, error: Exception | None = None) -> None:
         self.result = result
         self.error = error
         self.calls: list[str] = []

@@ -15,6 +15,12 @@ from app.main import app
 
 
 @pytest.fixture
+def anyio_backend() -> str:
+    """Run `@pytest.mark.anyio` tests on asyncio only (the default also tries trio)."""
+    return "asyncio"
+
+
+@pytest.fixture
 def fake_extractor() -> FakeExtractor:
     return FakeExtractor()
 

@@ -12,6 +12,7 @@ Production-like (one process, one port):
 import logging
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
@@ -21,6 +22,10 @@ logger = logging.getLogger(__name__)
 
 # backend/app/main.py -> repo root -> web/dist
 DEFAULT_WEB_DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
+
+# Secrets (ANTHROPIC_API_KEY) live in backend/.env, which git ignores. Real
+# environment variables win over the file, so a host's settings take priority.
+load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
 
 
 def create_app(web_dist: Path | None = DEFAULT_WEB_DIST) -> FastAPI:
