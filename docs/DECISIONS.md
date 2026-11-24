@@ -245,3 +245,19 @@ One short entry per decision: the date, what we chose, why, and the alternatives
 - **Chose:** **Social Commerce Reliability Reporter**, short form "Reliability Reporter" (Suhaani).
 - **Why:** it matches the repo name, and "Reporter" fits an output that is a report with reasons. "Product" was left out because the tool judges the *store* behind a promo, not the product's quality; that would have been misleading. Without "product" the name still fits if a later phase adds product-level checks.
 - **Note:** earlier entries in this log keep the name they used at the time.
+
+## 2026-11-24: Blocklist: Google Safe Browsing v4 Lookup API
+
+- **Options:** Safe Browsing v4 Lookup, Safe Browsing v5 (`urls:search`, still labelled alpha), Google Web Risk (paid, for commercial use), community lists (PhishTank needs registration; URLhaus is malware-only).
+- **Chose:** v4 Lookup API (Suhaani). Free; the terms allow non-commercial use only ("not for sale or revenue generating purposes"), which fits a portfolio project. Web Risk is the route if the project ever becomes commercial.
+- **Key setup:** a Google Cloud project with the Safe Browsing API enabled, and an API key restricted to the Safe Browsing API only. That way a leaked key can't be used for paid Google APIs once billing is enabled for hosting. No application restriction, because Cloud Run's outbound IP isn't fixed. The key lives in `backend/.env` (git-ignored) and is sent in the `x-goog-api-key` header, never in the URL. Verified 2026-11-24 with Google's test pages (malware and phishing flagged, wikipedia.org clean).
+- **Rules from the terms that shape the design:**
+  - show "Advisory provided by Google" with a link next to any result, and use hedged wording ("suspected", "may")
+  - never warn based on a result older than its `cacheDuration` (300 s in testing) or 30 minutes, so this signal's cache TTL in Phase 5 must be short
+  - lookups send the URL to Google, which may use and share it, so the page says so in one line
+
+## 2026-11-24: Hosting on Google Cloud
+
+- **Options researched:** Render (free, no card, sleeps after 15 min with ~1 min wake-up), Railway (no card, but only $1/month credit), Fly.io (card needed), Google Cloud Run, the GitHub Student Pack (Heroku/Azure credits).
+- **Chose:** Google Cloud (Suhaani), so hosting sits in the same project as the Safe Browsing key. Proposed service: **Cloud Run** (scales to zero, wakes in seconds), pending confirmation.
+- **To verify before deploying:** the current free allowance and whether a billing account (card) is required. If billing is enabled, set a budget alert straight away.
