@@ -42,6 +42,12 @@ class Finding:
     source: str | None = None  # e.g. "Advisory provided by Google" where terms require attribution
 
 
+class SignalUnavailable(Exception):
+    """Raised by a signal when its check can't be done, with a reason that's safe to
+    show users (e.g. "No public registration data for .xyz domains."). Unlike an
+    unexpected crash, the message is displayed as-is."""
+
+
 class SignalStatus(StrEnum):
     OK = "ok"  # the check ran and produced a finding
     FAILED = "failed"  # the check crashed or its data source returned an error

@@ -21,7 +21,7 @@ See docs/DECISIONS.md (2026-11-24, SSRF protection; fetcher details).
 import asyncio
 import ipaddress
 import socket
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
@@ -52,6 +52,7 @@ class FetchedPage:
     content_type: str
     text: str  # empty for non-text responses
     truncated: bool  # True if the body was cut at MAX_BYTES
+    headers: dict[str, str] = field(default_factory=dict)  # lower-case names
 
 
 class HostResolver(Protocol):
@@ -165,6 +166,7 @@ class SafeFetcher:
                         content_type=content_type,
                         text=body.decode(response.encoding or "utf-8", errors="replace"),
                         truncated=truncated,
+                        headers={k.lower(): v for k, v in response.headers.items()},
                     )
                 raise FetchBlocked("The page redirected too many times.")
         except TimeoutError as error:

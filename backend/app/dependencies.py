@@ -5,12 +5,18 @@ Tests replace these with `app.dependency_overrides[...]`, so no test reaches the
 real LLM or real DNS.
 """
 
+from collections.abc import AsyncIterator
 from functools import lru_cache
 
 from app.extraction.base import Extractor
 from app.extraction.claude import ClaudeExtractor
 from app.extraction.domain_check import DnsResolver, DomainResolver
 from app.signals.base import Signal
+from app.signals.domain_age import DomainAgeSignal
+from app.signals.fetcher import SafeFetcher
+from app.signals.popularity import PopularitySignal, default_tranco
+from app.signals.safe_browsing import SafeBrowsingSignal
+from app.signals.store_pages import ShopifySignal, StorePageLoader, StorePagesSignal
 
 
 @lru_cache
@@ -23,7 +29,18 @@ def get_domain_resolver() -> DomainResolver:
     return DnsResolver()
 
 
-def get_signals() -> list[Signal]:
-    # The real signals (domain age, Safe Browsing, store pages, Shopify, popularity)
-    # are added here one at a time in the next steps.
-    return []
+async def get_signals() -> AsyncIterator[list[Signal]]:
+    """The five trust signals for one scan. A fresh page fetcher per request keeps
+    each scan's robots.txt cache and page loads separate; it's closed afterwards."""
+    fetcher = SafeFetcher()
+    pages = StorePageLoader(fetcher)
+    try:
+        yield [
+            DomainAgeSignal(),
+            SafeBrowsingSignal(),
+            StorePagesSignal(pages),
+            ShopifySignal(pages),
+            PopularitySignal(default_tranco()),
+        ]
+    finally:
+        await fetcher.aclose()

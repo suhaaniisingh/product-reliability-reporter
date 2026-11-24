@@ -10,7 +10,7 @@ import asyncio
 import logging
 import time
 
-from app.signals.base import Signal, SignalResult, SignalStatus, Store
+from app.signals.base import Signal, SignalResult, SignalStatus, SignalUnavailable, Store
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,8 @@ async def _run_one(signal: Signal, store: Store) -> SignalResult:
     try:
         async with asyncio.timeout(signal.timeout_seconds):
             finding = await signal.check(store)
+    except SignalUnavailable as reason:
+        return result(SignalStatus.FAILED, f"{signal.label}: {reason}")
     except TimeoutError:
         logger.warning("signal %s timed out after %ss for %s", signal.name, signal.timeout_seconds, store.domain)
         return result(SignalStatus.TIMEOUT, f"{signal.label}: the check took too long, so it was skipped.")

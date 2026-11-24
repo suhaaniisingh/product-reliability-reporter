@@ -14,6 +14,8 @@ Each item: what it is, the phase it fits, and where the idea came from.
 
 - **Trustpilot as a review signal**, only if a free developer key turns out to exist (unconfirmed 2026-11-24: their docs describe keys via paid Trustpilot for Business or a partner agreement). *Source: Phase 2 review research.*
 
+- **Pages rendered by JavaScript:** contact details (and sometimes policies) that a site loads with JavaScript aren't in the HTML our fetcher receives (e.g. Nike's help page). Options: an LLM reading the pages we do get, or a headless browser (heavier). Postal addresses aren't detected at all yet. *Source: Phase 2 live checks, 2026-11-24.*
+
 ## Phase 3: Labelled dataset + evaluation
 
 - **Add real captions to the eval set**, to check how optimistic the synthetic numbers are. *Source: Phase 1 caveat.*
