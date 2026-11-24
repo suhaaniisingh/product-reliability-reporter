@@ -29,14 +29,14 @@ def test_api_still_works_when_page_is_mounted(tmp_path: Path) -> None:
     # Guards against route-ordering bugs where the "/" mount swallows /api requests.
     client = TestClient(create_app(web_dist=make_fake_build(tmp_path)))
 
-    response = client.post("/api/check", json={"url": "https://example-store.com"})
+    response = client.post("/api/scan", json={"store_url": "example-store.com"})
 
     assert response.status_code == 200
-    assert "signals" in response.json()
+    assert response.json()["extraction"]["store_url_source"] == "user_provided"
 
 
 def test_api_works_without_a_web_build(tmp_path: Path) -> None:
     client = TestClient(create_app(web_dist=tmp_path / "missing"))
 
-    assert client.post("/api/check", json={"url": "https://example-store.com"}).status_code == 200
+    assert client.post("/api/scan", json={"store_url": "example-store.com"}).status_code == 200
     assert client.get("/").status_code == 404

@@ -15,7 +15,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.routes import check
+from app.routes import scan
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +31,13 @@ def create_app(web_dist: Path | None = DEFAULT_WEB_DIST) -> FastAPI:
     """
     app = FastAPI(
         title="Trust Checker API",
-        description="Evidence-based trust reports for online stores.",
+        description="Extracts what a social video promotes, then (in later phases) scores the store behind it.",
         version="0.1.0",
     )
 
     # API routes are registered first, so /api/... always reaches the API,
     # never the static files mounted below.
-    app.include_router(check.router)
+    app.include_router(scan.router)
 
     if web_dist is not None and (web_dist / "index.html").is_file():
         # html=True serves index.html for "/" (like a normal web server).
