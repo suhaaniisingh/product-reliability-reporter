@@ -1,4 +1,4 @@
-# Social Commerce Trust Checker
+# Social Commerce Reliability Reporter
 
 Tells a shopper whether the store behind a TikTok/Instagram product promo looks trustworthy, and **why**. Paste the video's caption (or the store link). The system works out the product, brand and store, then (from Phase 2) collects public trust signals about that store and returns an explainable score.
 

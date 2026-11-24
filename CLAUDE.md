@@ -1,4 +1,4 @@
-# CLAUDE.md — Social Commerce Trust Checker
+# CLAUDE.md — Social Commerce Reliability Reporter
 
 ## What this project is
 
@@ -10,7 +10,7 @@ Given a social media video (pasted link, or the video open in the browser), the 
 2. **Collects public trust signals** about that store (domain age, blocklists, store-page checks, etc.).
 3. **Scores** the store and returns an explainable result: a score, a confidence level, and the reasons behind it.
 
-Working name: "Social Commerce Trust Checker" (not final).
+Name: "Social Commerce Reliability Reporter" (short form: "Reliability Reporter").
 
 ## Why this project exists (read this — it shapes every decision)
 

@@ -1,7 +1,7 @@
 [project]
-name = "trust-checker-backend"
+name = "reliability-reporter-backend"
 version = "0.1.0"
-description = "Backend API for the Social Commerce Trust Checker: returns evidence-based trust reports for online stores."
+description = "Backend API for the Social Commerce Reliability Reporter: extracts the store behind a social video promo and reports how trustworthy it looks, with reasons."
 requires-python = ">=3.14"
 dependencies = [
     "anthropic>=2.13.0",

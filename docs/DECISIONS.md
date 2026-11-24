@@ -238,3 +238,10 @@ One short entry per decision: the date, what we chose, why, and the alternatives
 - **Chose (Suhaani approved):** a deterministic post-processing rule. If the model found no brand and a hashtag equals the store domain's name (ignoring common affixes such as co/shop/store and get/try/shop), that hashtag becomes the brand, with a note giving the reason. A short list of generic hashtags (`#skincare`, `#fyp`, `#ad`, …) never counts. The model's own brand is never overridden.
 - **Why:** free (no tokens), gives the same answer every time, unit-tested, and consistent with the policy that the brand must be named in the caption (a hashtag is a mention).
 - **Result:** Sonnet 45/45 on all splits, measured from cached answers at $0. The original `test` split isn't a clean measure for this rule, since its row c02 motivated it. Held-out `test2` stays 8/8.
+
+## 2026-11-24: Project name: Social Commerce Reliability Reporter
+
+- **Options:** "Social Commerce Trust Checker" (the working name), "Social Commerce Product Reliability Reporter", "Social Commerce Store Reliability Reporter", "Social Commerce Reliability Reporter".
+- **Chose:** **Social Commerce Reliability Reporter**, short form "Reliability Reporter" (Suhaani).
+- **Why:** it matches the repo name, and "Reporter" fits an output that is a report with reasons. "Product" was left out because the tool judges the *store* behind a promo, not the product's quality; that would have been misleading. Without "product" the name still fits if a later phase adds product-level checks.
+- **Note:** earlier entries in this log keep the name they used at the time.

@@ -35,7 +35,7 @@ def create_app(web_dist: Path | None = DEFAULT_WEB_DIST) -> FastAPI:
     depending on a real frontend build.
     """
     app = FastAPI(
-        title="Trust Checker API",
+        title="Reliability Reporter API",
         description="Extracts what a social video promotes, then (in later phases) scores the store behind it.",
         version="0.1.0",
     )

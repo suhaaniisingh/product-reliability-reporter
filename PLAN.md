@@ -1,4 +1,4 @@
-# PLAN.md: Social Commerce Trust Checker
+# PLAN.md: Social Commerce Reliability Reporter
 
 > Approved 2026-11-23. A living document: the status table and phase sections are updated after each phase report.
 

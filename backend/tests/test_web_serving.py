@@ -12,7 +12,7 @@ from app.main import create_app
 
 
 def make_fake_build(folder: Path) -> Path:
-    (folder / "index.html").write_text("<html><title>Trust Checker</title></html>")
+    (folder / "index.html").write_text("<html><title>Reliability Reporter</title></html>")
     return folder
 
 
@@ -22,7 +22,7 @@ def test_page_is_served_at_root(tmp_path: Path) -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Trust Checker" in response.text
+    assert "Reliability Reporter" in response.text
 
 
 def test_api_still_works_when_page_is_mounted(tmp_path: Path) -> None:
