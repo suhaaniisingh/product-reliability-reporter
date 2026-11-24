@@ -259,5 +259,5 @@ One short entry per decision: the date, what we chose, why, and the alternatives
 ## 2026-11-24: Hosting on Google Cloud
 
 - **Options researched:** Render (free, no card, sleeps after 15 min with ~1 min wake-up), Railway (no card, but only $1/month credit), Fly.io (card needed), Google Cloud Run, the GitHub Student Pack (Heroku/Azure credits).
-- **Chose:** Google Cloud (Suhaani), so hosting sits in the same project as the Safe Browsing key. Proposed service: **Cloud Run** (scales to zero, wakes in seconds), pending confirmation.
-- **To verify before deploying:** the current free allowance and whether a billing account (card) is required. If billing is enabled, set a budget alert straight away.
+- **Chose:** Google Cloud (Suhaani), so hosting sits in the same project as the Safe Browsing key. Service: **Cloud Run** (scales to zero, wakes in seconds), confirmed by Suhaani 2026-11-24.
+- **Billing:** Cloud Run needs a billing account (card). Its monthly free allowance is reported as 2M requests, 180,000 vCPU-seconds and 360,000 GiB-seconds per billing account (third-party sources; Google's pages couldn't be read from this environment), plus a $300 / 90-day credit for new customers. A budget alert is set before deploying.
