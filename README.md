@@ -91,7 +91,7 @@ One-time setup (already done for this project): a billing account with a budget 
 
 ```bash
 gcloud run deploy reliability-reporter --source . --region us-central1 \
-  --allow-unauthenticated --min-instances 0 --max-instances 1 --memory 512Mi --cpu 1 \
+  --allow-unauthenticated --min-instances 0 --max-instances 1 --memory 512Mi --cpu 1 --cpu-boost \
   --set-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,GOOGLE_SAFE_BROWSING_API_KEY=safe-browsing-api-key:latest"
 ```
 

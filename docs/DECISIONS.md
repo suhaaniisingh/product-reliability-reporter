@@ -297,3 +297,15 @@ Suhaani approved all of these at once, before the build started.
 - **Secrets:** `anthropic-api-key` and `safe-browsing-api-key` are in Secret Manager, created straight from `backend/.env` without being displayed. Read access is granted per secret to the runtime account only, and they're mounted as environment variables.
 - **Upload safety:** `.gcloudignore` / `.dockerignore` exclude `.env`, caches, tests and docs. The upload list was checked before deploying.
 - **Client IP on Cloud Run:** `TRUSTED_PROXY_HOPS=1` (the last `X-Forwarded-For` entry, which Cloud Run appends). Verified live: spoofed headers didn't get around the limit. Separate real visitors getting separate limits rests on community reports and is still to be confirmed from a second network.
+
+## 2026-11-24: Cold starts: lazy SDK import, uvicorn, startup CPU boost, page-triggered warm-up
+
+- **Problem (reported by Suhaani):** the deployed page took 20–30 s to open. Cloud Run logs showed an instance start took 26 s, about 20 s of it importing the app (mostly the Anthropic SDK), before even the static page could be served.
+- **Changes (no extra cost):**
+  - Import the SDK lazily, since only caption scans need it.
+  - Start with `uvicorn` directly instead of the `fastapi run` CLI.
+  - `--cpu-boost` (extra CPU during startup only).
+  - Add a `GET /api/warmup` endpoint that the page calls when it opens.
+- **Result:** start-to-ready 26 s → ~5 s; page 0.8 s; a caption scan made ~10 s after opening the page 3.0 s.
+- **Lesson:** a background warm-up thread took 30 s, because with request-based billing Cloud Run gives an instance CPU only while it handles a request. So the warm-up runs *inside* a request instead.
+- **Still open:** a visitor arriving after ~15 idle minutes waits ~5 s for the instance to start. Options (keep-warm ping, or `min-instances 1`) were put to Suhaani.
