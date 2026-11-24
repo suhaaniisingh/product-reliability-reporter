@@ -21,7 +21,7 @@ Research on 2026-11-23 showed that TikTok's and Instagram's oEmbed endpoints **n
    - anything deferred to `docs/BACKLOG.md`
    - known weaknesses
    - the decision proposal for the next phase
-4. **Wait.** The next phase starts only after you explicitly approve.
+4. **Ask, then push.** At the end of the report, I ask whether everything in the phase is okay. Only after you explicitly approve **that specific phase** do I push its commits to GitHub (`origin/main`) and start the next phase. Approval of one phase never carries over to another, and nothing is pushed without it.
 
 | Phase | Status | Key metric |
 |---|---|---|

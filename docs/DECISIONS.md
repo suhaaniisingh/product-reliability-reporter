@@ -158,3 +158,9 @@ One short entry per decision: the date, what we chose, why, and the alternatives
 - **Options:** rewrite history to merge those commits (they aren't pushed), or leave history as is and adopt a rule.
 - **Chose:** leave history, adopt the rule. When an API changes shape, either update its callers in the same commit, or first add the new endpoint alongside the old one ("expand"), move the callers over, and only then remove the old one ("contract").
 - **Why:** rewriting history would lose the small step-by-step commits. Expand-then-contract is how production teams change APIs without downtime. It will matter more from Phase 4, when a released extension can't be updated at the same moment as the server.
+
+## 2026-11-23: Pushing happens only after a phase is approved
+
+- **Chose:** Claude handles pushing to GitHub, but only after Suhaani explicitly approves that specific phase at the end of its report. Commits stay local until then, and the next phase starts only after the push. Approving one phase never carries over to another.
+- **Why:** `origin/main` only ever holds work Suhaani has reviewed and can defend, and each push marks a finished, approved phase.
+- **Supersedes:** the "commit directly to `main` and push" part of the 2026-11-12 git workflow entry. Committing directly to `main` still stands.
