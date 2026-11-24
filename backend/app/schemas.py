@@ -9,6 +9,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
+from app.extraction.store_url import normalize_store_url
+
 # Bounds how much text (and therefore how many LLM tokens) one scan can send.
 MAX_CAPTION_CHARS = 5000
 MAX_STORE_URL_CHARS = 2048
@@ -58,6 +60,12 @@ class ScanRequest(BaseModel):
             value = value.strip()
             return value or None
         return value
+
+    @field_validator("store_url")
+    @classmethod
+    def normalize(cls, value: str | None) -> str | None:
+        """'GlowLab.co' -> 'https://glowlab.co'. Not a domain -> 422 with this message."""
+        return None if value is None else normalize_store_url(value)
 
     @model_validator(mode="after")
     def require_caption_or_store_url(self) -> "ScanRequest":

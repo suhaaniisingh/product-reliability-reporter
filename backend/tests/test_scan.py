@@ -37,11 +37,11 @@ def test_caption_runs_the_extractor(client: TestClient, fake_extractor: FakeExtr
 
 
 def test_store_url_only_skips_the_extractor(client: TestClient, fake_extractor: FakeExtractor) -> None:
-    response = client.post("/api/scan", json={"store_url": "glowlab.co"})
+    response = client.post("/api/scan", json={"store_url": "GlowLab.co"})
 
     assert response.status_code == 200
     extraction = response.json()["extraction"]
-    assert extraction["store_url"] == "glowlab.co"
+    assert extraction["store_url"] == "https://glowlab.co"  # normalized
     assert extraction["store_url_source"] == "user_provided"
     assert extraction["confidence"] == "high"
     assert fake_extractor.calls == []  # no LLM call: instant and free
@@ -53,7 +53,7 @@ def test_user_store_url_beats_the_extracted_one(client: TestClient, fake_extract
     response = client.post("/api/scan", json={"caption": "serum at glowlab.co", "store_url": "glowlab-official.com"})
 
     extraction = response.json()["extraction"]
-    assert extraction["store_url"] == "glowlab-official.com"
+    assert extraction["store_url"] == "https://glowlab-official.com"
     assert extraction["store_url_source"] == "user_provided"
     assert extraction["product"] == "vitamin C serum"  # still extracted from the caption
 
@@ -67,6 +67,7 @@ def test_user_store_url_beats_the_extracted_one(client: TestClient, fake_extract
         {"video_url": "https://www.tiktok.com/@anna/video/7301234567890123456"},  # a link alone isn't enough
         {"caption": "x" * (MAX_CAPTION_CHARS + 1)},
         {"caption": "hi", "video_url": "not a url"},
+        {"store_url": "not a website"},
     ],
 )
 def test_invalid_input_returns_422(client: TestClient, payload: dict) -> None:
@@ -80,3 +81,16 @@ def test_extractor_failure_returns_502(client: TestClient, fake_extractor: FakeE
 
     assert response.status_code == 502
     assert response.json()["detail"] == "The extraction service is unavailable."
+
+
+def test_video_url_is_parsed_without_a_network_call(client: TestClient) -> None:
+    response = client.post(
+        "/api/scan",
+        json={"store_url": "glowlab.co", "video_url": "https://www.tiktok.com/@anna/video/7301234567890123456"},
+    )
+
+    assert response.json()["video"] == {"platform": "tiktok", "video_id": "7301234567890123456", "creator_handle": "anna"}
+
+
+def test_video_is_null_without_a_video_url(client: TestClient) -> None:
+    assert client.post("/api/scan", json={"store_url": "glowlab.co"}).json()["video"] is None

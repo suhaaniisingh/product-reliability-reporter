@@ -5,6 +5,7 @@ Chrome extension's flow or a job queue) without going through FastAPI.
 """
 
 from app.extraction.base import Extractor, LLMExtraction
+from app.extraction.video_url import parse_video_url
 from app.schemas import Confidence, Extraction, ScanRequest, ScanResponse, StoreUrlSource
 
 
@@ -35,10 +36,12 @@ def _from_llm(llm: LLMExtraction) -> Extraction:
 
 
 async def run_scan(request: ScanRequest, extractor: Extractor) -> ScanResponse:
+    video = parse_video_url(str(request.video_url)) if request.video_url is not None else None
+
     if request.caption is None:
         # Validation guarantees store_url is set here. No LLM call: instant and free.
         assert request.store_url is not None
-        return ScanResponse(video=None, extraction=_from_store_url_only(request.store_url))
+        return ScanResponse(video=video, extraction=_from_store_url_only(request.store_url))
 
     extraction = _from_llm(await extractor.extract(request.caption))
 
@@ -48,4 +51,4 @@ async def run_scan(request: ScanRequest, extractor: Extractor) -> ScanResponse:
         extraction.store_url_source = StoreUrlSource.USER_PROVIDED
         extraction.confidence = Confidence.HIGH
 
-    return ScanResponse(video=None, extraction=extraction)
+    return ScanResponse(video=video, extraction=extraction)
