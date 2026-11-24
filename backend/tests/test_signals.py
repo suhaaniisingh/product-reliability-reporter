@@ -157,6 +157,16 @@ CONTACT = '<html><body><p>Email <a href="mailto:hello@glowlab.co">hello@glowlab.
 BARE_HOME = '<html><body><h1>GLOW SERUM 70% OFF</h1><img src="logo@2x.png"><a href="/products/serum">Buy now</a></body></html>'
 
 
+class FakeMailResolver:
+    """Every email domain receives mail unless listed otherwise."""
+
+    def __init__(self, no_mail: set[str] | None = None) -> None:
+        self.no_mail = no_mail or set()
+
+    async def receives_mail(self, domain: str) -> bool | None:
+        return domain not in self.no_mail
+
+
 class OneAddressResolver:
     async def resolve(self, host: str) -> list[str]:
         return ["93.184.215.14"]
@@ -177,10 +187,11 @@ def store_site(pages: dict[str, str], robots: str = "User-agent: *\nAllow: /\n")
     return SafeFetcher(resolver=OneAddressResolver(), transport=httpx.MockTransport(handler)), requested
 
 
-async def run_page_signals(pages: dict[str, str], **kwargs) -> tuple[list, list[str]]:
+async def run_page_signals(pages: dict[str, str], mail: FakeMailResolver | None = None, **kwargs) -> tuple[list, list[str]]:
     fetcher, requested = store_site(pages, **kwargs)
     loader = StorePageLoader(fetcher)
-    results = await run_signals([StorePagesSignal(loader), ShopifySignal(loader)], Store.from_url("https://glowlab.co/products/serum"))
+    signals = [StorePagesSignal(loader, mail_resolver=mail or FakeMailResolver()), ShopifySignal(loader)]
+    results = await run_signals(signals, Store.from_url("https://glowlab.co/products/serum"))
     await fetcher.aclose()
     return results, requested
 
@@ -191,7 +202,10 @@ async def test_shopify_store_with_policy_and_contact() -> None:
     assert pages.status is SignalStatus.OK and platform.status is SignalStatus.OK
     assert pages.value["return_policy"] is True and pages.value["return_policy_url"] == "https://glowlab.co/policies/refund-policy"
     assert pages.value["contact_email"] is True and pages.value["contact_phone"] is True
-    assert pages.explanation == "Return/refund policy found; contact email and phone found."
+    assert pages.explanation == (
+        "Return/refund policy found; contact email hello@glowlab.co found on /pages/contact (the store's own domain); "
+        "valid phone number found on /pages/contact (CA, landline or mobile)."
+    )
     assert platform.value == {"shopify": True}
     assert requested.count("/") == 1  # the home page is fetched once for both signals
 
@@ -202,8 +216,42 @@ async def test_bare_store_has_no_policy_and_no_contact() -> None:
     assert pages.value["return_policy"] is False
     assert pages.value["contact_email"] is False  # logo@2x.png isn't an email address
     assert pages.value["contact_phone"] is False
-    assert pages.explanation == "No return or refund policy found on the pages checked; no contact email or phone number found."
+    assert pages.explanation == "No return or refund policy found on the pages checked; no working contact email or phone number found."
     assert platform.value == {"shopify": False}
+
+
+async def test_an_email_whose_domain_cant_receive_mail_doesnt_count() -> None:
+    contact = '<p>Write to <a href="mailto:support@glowlab-help.co">support@glowlab-help.co</a></p>'
+    (pages, _), _ = await run_page_signals({"/": SHOPIFY_HOME, "/pages/contact": contact}, mail=FakeMailResolver({"glowlab-help.co"}))
+
+    assert pages.value["contact_email"] is False
+    assert pages.value["emails"][0]["receives_mail"] is False
+    assert "support@glowlab-help.co) was found on /pages/contact, but its domain can't receive mail" in pages.explanation
+    assert pages.explanation.endswith("no working contact email or phone number found.")
+
+
+async def test_free_webmail_counts_but_is_labelled() -> None:
+    contact = "<p>Questions? glowlab.shop@gmail.com</p>"
+    (pages, _), _ = await run_page_signals({"/": SHOPIFY_HOME, "/pages/contact": contact})
+
+    assert pages.value["contact_email"] is True
+    assert pages.value["emails"][0]["owner"] == "free_webmail"
+    assert "a free webmail address" in pages.explanation
+
+
+async def test_an_invalid_phone_number_doesnt_count() -> None:
+    contact = '<p>Call <a href="tel:000-123-4567">000-123-4567</a></p>'
+    (pages, _), _ = await run_page_signals({"/": SHOPIFY_HOME, "/pages/contact": contact})
+
+    assert pages.value["contact_phone"] is False
+    assert "isn't a valid number" in pages.explanation
+
+
+async def test_order_numbers_and_prices_arent_phone_numbers() -> None:
+    home = "<p>Order #2024-1234-5678 ships today. Only $19.99!</p>"
+    (pages, _), _ = await run_page_signals({"/": home})
+
+    assert pages.value["phones"] == []
 
 
 async def test_emails_inside_scripts_dont_count() -> None:

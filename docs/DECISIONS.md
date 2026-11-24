@@ -320,3 +320,15 @@ Suhaani approved all of these at once, before the build started.
 - **Popularity list: top 100,000** (was 50,000), with a new band: ranks 50,000–100,000 score **+5** (top 10k +15, 10k–50k +10, not listed 0). About 10 MB in memory. Effect: cerave.com (rank 88,330) now gets +5.
 - **Safe Browsing stays one-sided:** a listing caps the score at 10, and not being listed scores 0. Almost every site, including most new scam shops, isn't listed, so a bonus for "not listed" would shift every score up without telling stores apart. Suhaani agreed.
 - **Reading the brand from a video frame:** deferred to the Chrome extension (Phase 4), which can capture the visible frame when the user clicks. The platforms' public endpoints don't provide images, and downloading frames would be scraping. A manual screenshot upload was considered and not built for now; the server side (an LLM reading the image) would be shared by both.
+
+## 2026-11-24: Check that published contact details work
+
+- **Context:** Suhaani asked why contact details weren't checked for being real. Before, any email or phone number on the site counted.
+- **Chose (Suhaani approved):** free, deterministic checks:
+  - **Email:** the domain must publish mail servers (DNS MX lookup with `dnspython`). A "null MX" or a missing domain fails; a DNS timeout doesn't penalise.
+  - **Email context:** the store's own domain, free webmail, or another domain. Context only, since many honest small shops use Gmail.
+  - **Phone:** must be a valid number under Google's libphonenumber rules (`phonenumbers`), which also gives the country and line type. Numbers in page text must be valid to count at all, which skips order numbers and prices. Numbers without a country code are read in the store's country (from its country domain, else US).
+  - **Where:** each detail records the page it was found on.
+  - "Contact found" now means **working** contact; the points are unchanged (+5 / −10).
+- **Rejected:** SMTP mailbox probing (unreliable, and treated as spammer behaviour), paid carrier lookups, contacting the store.
+- **Limit:** a real Gmail address costs nothing, so this filters out fake-looking details but can't prove trustworthiness.

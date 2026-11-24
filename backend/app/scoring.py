@@ -80,9 +80,9 @@ def score_signals(signals: list[SignalResult], store_source: StoreUrlSource) -> 
         else:
             add(-10, "No return or refund policy found", "store_pages")
         if pages.get("contact_email") or pages.get("contact_phone"):
-            add(5, "Contact email or phone number found", "store_pages")
+            add(5, "Working contact email or phone number found", "store_pages")
         else:
-            add(-10, "No contact email or phone number found", "store_pages")
+            add(-10, "No working contact email or phone number found", "store_pages")
 
     if "shopify" in ok and ok["shopify"].get("shopify"):
         add(0, "Built on Shopify (context only: common for honest and quickly-made stores alike)", "shopify")

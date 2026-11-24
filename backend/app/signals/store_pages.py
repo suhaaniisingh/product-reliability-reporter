@@ -7,18 +7,29 @@ the SSRF-safe fetcher, respecting robots.txt. Two signals read from it:
 - ShopifySignal: is the store built on Shopify (context only, scores 0)?
 
 Detection is plain pattern matching: free, instant and deterministic. It
-can miss unusual layouts. Postal addresses aren't detected (too varied for
+can miss unusual layouts. Contact details are then checked in contact_check.py
+(mail servers, phone validity). Postal addresses aren't detected (too varied for
 patterns); an LLM reading policy pages is in docs/BACKLOG.md.
 """
 
 import asyncio
 import re
 from dataclasses import dataclass, field
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
 from app.signals.base import Finding, SignalUnavailable, Store
+from app.signals.contact_check import (
+    DnsMailResolver,
+    EmailCheck,
+    MailResolver,
+    PhoneCheck,
+    check_emails,
+    check_phone,
+    default_region,
+    phones_in_text,
+)
 from app.signals.domains import registrable_domain
 from app.signals.fetcher import FetchBlocked, FetchedPage, FetchFailed, SafeFetcher
 
@@ -28,8 +39,6 @@ _POLICY_LINK = re.compile(r"refund|return|exchange", re.I)
 _CONTACT_LINK = re.compile(r"contact", re.I)
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 _NOT_EMAIL = re.compile(r"\.(png|jpe?g|gif|webp|svg|css|js)$|example\.(com|org)$|sentry|wixpress", re.I)
-# North-American style and international numbers with separators, e.g. (416) 555-0199, +44 20 7946 0958.
-_PHONE = re.compile(r"(?<!\d)(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)|\d{2,4})[\s.-]\d{3,4}[\s.-]\d{3,4}(?!\d)")
 _SHOPIFY_MARKERS = ("cdn.shopify.com", "shopify.theme", "myshopify.com", "shopify-section", "shopify-payment")
 
 
@@ -143,16 +152,46 @@ def is_shopify(page: FetchedPage) -> bool:
     return any(marker in text for marker in _SHOPIFY_MARKERS)
 
 
-def find_contact(pages: list[FetchedPage]) -> dict[str, bool]:
-    email = phone = False
+def find_contact(pages: list[FetchedPage], region: str) -> tuple[dict[str, str], dict[str, str]]:
+    """Emails and phone numbers on the pages, each mapped to the page path it was found on.
+
+    Sources: mailto:/tel: links and the visible text (scripts and styles removed, so
+    tracking code doesn't count). Phone numbers in text must be valid numbers, which
+    skips order numbers and prices; tel: links are kept even if invalid, so they can be
+    reported as such."""
+    emails: dict[str, str] = {}
+    phones: dict[str, str] = {}
     for page in pages:
+        path = urlsplit(page.url).path or "/"
         text, links = _visible_text_and_links(page.text)
-        hrefs = [h for h, _ in links]
-        email = email or any(h.lower().startswith("mailto:") for h in hrefs) or any(
-            not _NOT_EMAIL.search(m) for m in _EMAIL.findall(text)
-        )
-        phone = phone or any(h.lower().startswith("tel:") for h in hrefs) or bool(_PHONE.search(text))
-    return {"email": email, "phone": phone}
+        for href, _ in links:
+            lower = href.strip().strip('\\"').lower()
+            if lower.startswith("mailto:"):
+                address = unquote(lower.removeprefix("mailto:").split("?")[0]).strip()
+                if _EMAIL.fullmatch(address):
+                    emails.setdefault(address, path)
+            elif lower.startswith("tel:"):
+                phones.setdefault(unquote(href.strip()[4:]).strip(), path)
+        for match in _EMAIL.findall(text):
+            if not _NOT_EMAIL.search(match):
+                emails.setdefault(match.lower(), path)
+        for number in phones_in_text(text, region):
+            phones.setdefault(number, path)
+    return emails, phones
+
+
+def _describe_email(check: EmailCheck) -> str:
+    owner = {"store": "the store's own domain", "free_webmail": "a free webmail address", "other": "another domain"}[check.owner]
+    if check.receives_mail is False:
+        return f"an email ({check.address}) was found on {check.found_on}, but its domain can't receive mail"
+    verified = "" if check.receives_mail else ", mail delivery couldn't be verified"
+    return f"contact email {check.address} found on {check.found_on} ({owner}{verified})"
+
+
+def _describe_phone(check: PhoneCheck) -> str:
+    if not check.valid:
+        return f"a phone number ({check.number}) was found on {check.found_on}, but it isn't a valid number"
+    return f"valid phone number found on {check.found_on} ({check.country}, {check.line_type})"
 
 
 class StorePagesSignal:
@@ -160,29 +199,45 @@ class StorePagesSignal:
     label = "Store policies and contact"
     timeout_seconds = 12.0
 
-    def __init__(self, loader: StorePageLoader) -> None:
+    def __init__(self, loader: StorePageLoader, mail_resolver: MailResolver | None = None) -> None:
         self._loader = loader
+        self._mail = mail_resolver or DnsMailResolver()
 
     async def check(self, store: Store) -> Finding:
         pages = await self._loader.load(store)
         if pages.unavailable:
             raise SignalUnavailable(pages.unavailable)
         assert pages.home is not None
-        contact = find_contact([p for p in (pages.home, pages.contact) if p is not None])
+        region = default_region(store.domain)
+        found_emails, found_phones = find_contact([p for p in (pages.home, pages.contact) if p is not None], region)
+        emails = await check_emails(found_emails, store.domain, self._mail)
+        phones = [check_phone(number, page, region) for number, page in list(found_phones.items())[:5]]
+
+        # "Working" contact: an email whose domain receives mail (or can't be checked right
+        # now: we don't penalise a DNS hiccup), or a valid phone number.
+        working_email = next((e for e in emails if e.receives_mail is not False), None)
+        working_phone = next((p for p in phones if p.valid), None)
         has_policy = pages.policy is not None
 
-        policy_text = "Return/refund policy found" if has_policy else "No return or refund policy found on the pages checked"
-        found = [kind for kind in ("email", "phone") if contact[kind]]
-        contact_text = f"contact {' and '.join(found)} found" if found else "no contact email or phone number found"
+        parts = ["Return/refund policy found" if has_policy else "No return or refund policy found on the pages checked"]
+        shown = [x for x in (working_email, working_phone) if x is not None]
+        if not shown:  # explain the failures, if any were found at all
+            shown = (emails[:1] + phones[:1]) or []
+        parts += [_describe_email(x) if isinstance(x, EmailCheck) else _describe_phone(x) for x in shown]
+        if working_email is None and working_phone is None:
+            parts.append("no working contact email or phone number found")
+
         return Finding(
             value={
                 "return_policy": has_policy,
                 "return_policy_url": pages.policy.url if pages.policy else None,
-                "contact_email": contact["email"],
-                "contact_phone": contact["phone"],
+                "contact_email": working_email is not None,
+                "contact_phone": working_phone is not None,
+                "emails": [vars(e) for e in emails],
+                "phones": [vars(p) for p in phones],
                 "pages_checked": pages.checked,
             },
-            explanation=f"{policy_text}; {contact_text}.",
+            explanation="; ".join(parts) + ".",
         )
 
 
