@@ -1,192 +1,114 @@
-# Project Brief: Social Commerce Trust Checker (working title)
+# CLAUDE.md — Social Commerce Trust Checker
 
-> **For the coding agent:** This is the starting context for a project that is still being defined. It describes the current thinking, not a fixed spec. Treat everything here as a starting point that can change. Your job is to help me build it step by step **and** help me shape it as we go. When something is unclear, undecided, or could reasonably go more than one way, **ask me** instead of choosing for me.
+## What this project is
 
----
+A tool that tells a shopper whether the store behind a TikTok/Instagram product promo looks trustworthy, and **why**.
 
-## 1. How we work together (read this first)
+Given a social media video (pasted link, or the video open in the browser), the system:
 
-This is the most important section. The product and the technical approach are both still evolving.
+1. **Extracts** what is being promoted: product, brand, and store URL, from the caption and other public metadata.
+2. **Collects public trust signals** about that store (domain age, blocklists, store-page checks, etc.).
+3. **Scores** the store and returns an explainable result: a score, a confidence level, and the reasons behind it.
 
-- **Ask before deciding.** For any decision that shapes the product or the codebase (libraries, folder structure, data sources, scoring logic, UI, storage, deployment), give me 2–3 options with tradeoffs, recommend one, and wait for my answer. Small, obvious implementation details don't need a question.
-- **Keep asking what I want.** The specs are incomplete on purpose. As we build, raise questions about what the product should do. If something in this brief seems wrong, outdated, or contradicts what we've discussed, say so.
-- **Explain the why.** I'm building this to learn and to be able to explain every decision in interviews. When you write or change code, explain what it does, why this approach, and how it connects to how real production systems work. Go step by step.
-- **Small steps.** Build in small, working increments. Don't build ahead of what we've agreed on. Check in at the end of each step before starting the next one.
-- **Let me stay in the loop.** If I ask a follow-up about something unclear, stop and explain it properly before moving on.
-- **Keep a running record.** Maintain two files in the repo:
-  - `DECISIONS.md`: each decision we make, the options we considered, and why we chose what we did (one short entry per decision, dated).
-  - `OPEN_QUESTIONS.md`: things that are still undecided. Add to it when questions come up, and remove items once they're resolved.
-- **Be honest about limits.** If a data source is blocked, an API has restrictive terms, or an idea won't work well, tell me directly rather than working around it silently.
+Working name: "Social Commerce Trust Checker" (not final).
 
-### Keeping this file current
-- This file (CLAUDE.md) is the source of truth for the project's current state.
-- At the end of each milestone, or whenever we make a decision that changes anything written here, propose an update to this file. Show me the exact changes and wait for my approval before editing it.
-- Keep this file a summary of where things stand now. Detailed history and reasoning go in `DECISIONS.md`; unresolved items go in `OPEN_QUESTIONS.md`.
-- If the file is getting long, suggest what to trim or move into `docs/`.
-- Never change sections 1 (How we work together) or 4 (Design principles) without my explicit approval.
+## Why this project exists (read this — it shapes every decision)
 
----
+This is primarily a **portfolio project for SWE / AI-ML / cloud internship recruiting**, built by Suhaani (2nd-year CS student). It is not a startup. That means:
 
-## 2. The problem
+- **Engineering depth and measurability matter more than features.** Every phase should produce something that can be measured (accuracy, F1, latency, cache hit rate).
+- **Suhaani must understand and be able to defend every design decision in an interview.** You are a collaborator and teacher, not just a code generator.
+- **Finishing matters more than scope.** A small, deployed, measured system beats a large unfinished one.
 
-Many products are now sold through influencer videos and ads on Instagram, TikTok, etc. Buyers often get burned:
+## Non-goals (do NOT build these)
 
-- Deliveries take weeks, or never arrive.
-- The product that arrives looks cheaper than the one in the video.
-- There's no easy way to tell whether the store behind the video is trustworthy. The influencer is paid to promote it, and the store's own website shows only what it wants you to see.
+- ❌ Payment layer, escrow, or protected checkout. Removed on purpose.
+- ❌ Private seller data (sales history, purchase counts). We only use **public** signals.
+- ❌ Scraping that violates a platform's terms of service. Use official/oEmbed endpoints or user-pasted text. If unsure whether something is allowed, stop and ask.
+- ❌ B2B features, merchant dashboards, user accounts/login (for the MVP).
+- ❌ Features from a later phase while the current phase is unfinished.
 
-Existing "influencer verification" tools mostly serve **brands** (checking whether an influencer has fake followers). Very little helps the **buyer** answer: "Is the seller behind this video real, and will I actually get what I'm paying for?"
+## Proposed tech stack (confirm with Suhaani before locking anything in)
 
-## 3. The product idea (current thinking)
+- **Backend:** Python + FastAPI
+- **Web page (paste-a-link, mobile-friendly):** React + TypeScript (or a minimal page served by the backend in Phase 1)
+- **Browser extension:** Chrome, Manifest V3, TypeScript (Phase 4)
+- **LLM extraction:** provider TBD. Keep it behind an interface so it can be swapped and evaluated.
+- **Database / cache / job queue:** decide in Phase 5 (e.g. Postgres + Redis). Don't add them before they're needed.
+- **Hosting:** must be free (free tiers only).
 
-A **verification layer** between social media product promotions and the seller. A user points the tool at a store or a video, and gets a **trust report**: a short list of evidence-based signals explaining how reliable the store and product look, plus safe-buying tips.
+## Architecture (target, built up over the phases)
 
-Every report should help answer two separate questions:
-
-1. **Is the product real and good?** (reviews, does it match the ad, popularity)
-2. **Is this store real, and will it deliver?** (business identity, age, policies)
-
-The dangerous case to keep in mind: a real, popular product sold through a fake or impersonating store. Product signals look great, and the buyer still gets scammed.
-
----
-
-## 4. Design principles (current thinking)
-
-- **Evidence, not verdicts.** Report lines state facts ("Website created 3 weeks ago") rather than accusations ("This is a scam"). This is more trustworthy for users and avoids legal trouble.
-- **Every signal is explainable.** Each one has a status and a plain-English explanation of what was found.
-- **Show sources and ranges, never fake precision.** E.g. "2,300+ independent reviews (Trustpilot, Reddit)". Never invent numbers like an exact customer count.
-- **"Not enough information" is a valid answer.** When evidence is missing, say so honestly.
-- **Combinations matter more than single signals.** No single signal should trigger a "danger" result on its own. Example: a new website alone is only a mild warning, since legit small businesses (e.g. ones that sold through DMs for years) launch new websites all the time.
-- **False positives matter.** Wrongly warning people away from honest businesses destroys trust in the tool.
-- **Independent sources over store-controlled sources.** Reviews, sales counters, and "X people just bought this" popups on the store's own site are easy to fake and should be treated as near-worthless.
-- **We never handle money.** The "safe payment" goal is achieved through guidance (e.g. "pay by credit card for chargeback protection", "this product is also on Amazon with buyer protection"), not by processing payments.
-
----
-
-## 5. MVP signals (current shortlist, open to change)
-
-| # | Signal | What it checks | Notes |
-|---|---|---|---|
-| 1 | **Business age** | Earliest evidence the business existed | Not just domain age (WHOIS). Also consider earliest Wayback Machine snapshot and earliest independent mention, to avoid penalizing businesses older than their website. |
-| 2 | **Business transparency** | Business name, physical address, real contact email/phone, About page | Fetch store contact/About pages; an LLM can help extract details from messy page text. |
-| 3 | **Shipping and refund policy** | Delivery time, ships-from location, ships to Canada, refund window, red-flag clauses | LLM extracts structured fields from policy pages. Covers delivery and region concerns. |
-| 4 | **Independent customer reviews** | Reviews from sources the store doesn't control (e.g. Reddit, Trustpilot), sorted into: did it arrive, did it match the ad, region-specific experiences | Check API terms and rate limits first. "No independent reviews found" is itself useful. |
-| 5 | **Product photo origin** | Reverse image search for the product photos on AliExpress/Temu etc. | Likely needs a paid or free-tier API. Check cost and feasibility before building. |
-
-Ideas deliberately left for later (ask me before pulling any of these forward):
-
-- Amazon/marketplace presence (and "buy it there with buyer protection" suggestions)
-- Official brand account check to catch impersonator stores (e.g. official Instagram bio links to a different domain)
-- "Claimed vs. real" side-by-side of official product images vs. independent customer photos
-- Crowdsourced purchase reports from our own users (did it arrive, how long, did it match)
-- Popularity metrics (review counts, marketplace badges, traffic estimates)
-
----
-
-## 6. Clients / entry points (current thinking)
-
-- **Backend API is the core.** All clients are thin and call the same API, so new clients are cheap to add later.
-- **MVP:**
-  - Simple web page with a paste box (store URL to start; video URL later). Should work on mobile browsers.
-  - Chrome extension (Manifest V3, `activeTab` permission):
-    - Case A: user is on a store page and clicks the extension to check it.
-    - Case B: user pastes a link into the extension popup.
-- **Later:**
-  - Video mode: detect a TikTok/Instagram video URL, resolve which seller it promotes (caption, creator, bio links, LLM extraction), and ask the user to confirm when unsure. This is the hardest problem and comes after the rest works.
-  - PWA with a share target so Android users can share a video straight to the app.
-  - Possibly a native share extension or a DM bot.
-- Known constraint: browser extensions don't run inside the Instagram/TikTok mobile apps or their in-app browsers.
-
----
-
-## 7. Starting report contract (draft, expect it to evolve)
-
-The API returns a report like this. Treat it as a starting shape, not a final schema.
-
-```json
-{
-  "store_url": "https://example-store.com",
-  "signals": {
-    "business_age": { "status": "warning", "detail": "Website created 3 weeks ago" },
-    "business_transparency": { "status": "warning", "detail": "No address or phone listed" },
-    "shipping_policy": { "status": "warning", "detail": "Ships from overseas, 15–30 days" },
-    "independent_reviews": { "status": "unknown", "detail": "No independent reviews found" },
-    "photo_origin": { "status": "danger", "detail": "Photos match AliExpress listings" }
-  }
-}
+```
+[Chrome extension] ─┐
+                    ├─► POST /scan ─► [Extraction] ─► [Signal fetchers (parallel)] ─► [Scorer] ─► result
+[Paste-link page] ──┘                   caption→LLM      domain age, blocklists,        score +
+                                        → product,       store-page checks, reviews,    confidence +
+                                          brand, URL     (stretch) dropship check       reasons
 ```
 
-Statuses so far: `good`, `warning`, `danger`, `unknown`. Things likely to be added later (ask me): sources per signal, an overall summary, payment tips, timestamps for caching.
+Design principles:
+- Each **signal fetcher** is an independent module with the same interface. It returns a value, a status (ok / failed / timeout), and a short explanation. One failing signal must never crash a scan.
+- The **scorer** only reads signal outputs. Scoring logic must be explainable (every point added or removed has a reason string).
+- **Extraction** and **scoring** must each be testable offline against saved fixtures (no live API calls in unit tests).
 
----
+## Phases
 
-## 8. Rough roadmap (tentative, order may change)
+### Phase 1 — Extraction pipeline (walking skeleton)
+Goal: paste a video link → get structured extraction back.
+- `POST /scan` takes a video URL (or raw caption text as a fallback).
+- Fetch public metadata (caption, creator) using official/oEmbed endpoints. **Verify current availability and terms first** and report back.
+- LLM extracts `{product, brand, store_url, confidence, notes}` as validated structured output (e.g. Pydantic).
+- Handle messy cases: "link in bio", discount codes only, no store mentioned.
+- Small eval set: ~30 hand-labelled captions in `data/extraction_eval.csv`, plus a script that reports extraction accuracy.
+- Minimal page or CLI to try it out.
+- **Done when:** end-to-end works locally, tests pass, the eval script prints an accuracy number.
 
-1. **Phase 0 (optional, mine):** Manually check a handful of sketchy and legit stores to see which signals actually separate them. These become the start of an evaluation dataset.
-2. **Phase 1, walking skeleton:** Backend endpoint returns a hardcoded fake report; a bare paste-box page calls it and displays the result. Every layer exists and talks to the others.
-3. **Phase 2, real signals one at a time,** roughly easiest first: business age, transparency, policies, reviews, photo origin. Each signal is a self-contained module.
-4. **Phase 3, scoring and evaluation:** Rules-based scoring over signal combinations; an evaluation script that runs a labeled set of stores through the system and reports accuracy, false positives, etc. Possibly compare against an ML model later, once there is enough labeled data.
-5. **Phase 4, Chrome extension** (store page detection plus paste box).
-6. **Phase 5, video-to-seller resolution.**
-7. **Phase 6, make it solid:** Parallel signal collection, caching (with different freshness per signal), deployment in a container, logging, mobile-friendly page, PWA share target.
+### Phase 2 — Trust signals + rule-based score
+- Signal fetchers: domain age (WHOIS/RDAP), Google Safe Browsing (or similar blocklist), store-page checks (return policy, contact info, Shopify-template detection), and one review/mention source if a permitted API exists.
+- Rule-based scorer with reasons and a confidence level (lower confidence when signals fail).
+- Deploy the backend + paste-link page on a free host.
+- **Done when:** a deployed URL returns a score with reasons for a real store.
 
----
+### Phase 3 — Labelled dataset + evaluation
+- Label 200–300 stores as legit / sketchy in `data/stores_labelled.csv` (source of each label recorded; public scam-domain lists can help).
+- Evaluation script: precision, recall, F1, confusion matrix.
+- Compare the rule-based scorer with a simple learned model (e.g. logistic regression on the signals). Document the results in `docs/EVALUATION.md`.
+- **Done when:** there is a reproducible F1 number for each approach.
 
-## 9. Where to start: Phase 1
+### Phase 4 — Chrome extension
+- Detect the video on the current tab, call `/scan`, show the result in a popup.
+- Request only the permissions it needs. Explain each permission to Suhaani.
+- **Done when:** installable unpacked extension works on real TikTok/Instagram pages.
 
-Goal: a working end-to-end skeleton with a fake report.
+### Phase 5 — Systems hardening
+- Async job processing: a scan becomes a job; signal fetchers run in parallel.
+- Timeouts and retries with backoff for outside APIs; partial results when a source is down.
+- Cache results per domain with a TTL. Deduplicate concurrent scans of the same domain (idempotency).
+- Rate limiting on outside API calls.
+- Measure p95 latency and cache hit rate before and after; record them in `docs/METRICS.md`.
 
-Likely pieces:
+### Phase 6 — Stretch
+- Dropshipping / markup detection: find the same product elsewhere at a much lower price (e.g. image embeddings like CLIP). Approach TBD; research options and discuss with Suhaani first.
+- PWA share target so mobile users can share a video straight to the app.
 
-- A backend with one endpoint (e.g. `POST /check` taking a store URL) that validates input and returns the fake report from section 7.
-- A minimal web page with a paste box that calls the endpoint and renders each signal with its status and detail.
-- A README explaining how to run it locally.
-- `DECISIONS.md` and `OPEN_QUESTIONS.md` started.
+## How to work with Suhaani
 
-**Before writing any code, ask me about:**
+- **The product is still being defined. Ask about specs instead of guessing.** Before starting a task, list your open questions and wait for answers.
+- **Explain step by step, including why.** For every meaningful decision (library, data model, API shape, architecture), explain what it is, why you chose it, what the alternatives were, and how it connects to real production systems.
+- **Propose, then build.** Start each phase or larger task with a short plan; wait for approval before writing code.
+- **Work in small, reviewable steps.** One focused change per commit, with clear messages.
+- **Log decisions** in `docs/DECISIONS.md` (date, decision, why, alternatives considered). Suhaani will use this to prepare for interviews.
+- **Write tests** for extraction, each signal fetcher, and the scorer. Use saved fixtures, not live calls.
+- **Stay in the current phase.** If you notice something for a later phase, add it to `docs/BACKLOG.md` instead of building it.
+- **Secrets** go in `.env` (git-ignored) with a `.env.example` committed. Never commit API keys.
 
-- Backend language and framework. Python + FastAPI is the leading suggestion, since Python suits the later scraping, LLM, and ML work, but confirm with me.
-- Python version, dependency/package manager, and virtual environment setup.
-- Frontend for the paste page: plain HTML/JS vs. a framework like React + TypeScript.
-- Repo structure (one repo with `backend/`, `web/`, `extension/` folders, or something else).
-- Testing approach for this stage (e.g. a basic API test).
+## Metrics to track (these become resume bullets)
 
-Done when: I can run the backend locally, paste a URL into the page, and see the fake report rendered, and I understand how each piece works.
-
----
-
-## 10. Open questions (seed list for `OPEN_QUESTIONS.md`)
-
-- Product name.
-- Exact scoring approach: how signals combine, and what triggers each overall level.
-- Which review sources are realistic given API terms and rate limits.
-- Which reverse image search option to use, and its cost.
-- Which LLM provider/model to use for extraction and summarization, and how to keep costs low.
-- Storage: do we need a database in the MVP, and for what (cached reports, labeled stores, later user reports)?
-- Deployment target (free or cheap cloud hosting) and when to deploy.
-- How deep to go on the ML side (e.g. a trained classifier, image embeddings) vs. the systems side (async pipeline, caching, cloud).
-- Whether to show an overall score or only individual signals.
-- How to label the evaluation dataset and how big it should be.
-
----
-
-## 11. Constraints and guardrails
-
-- **Respect platform terms.** Check each data source's terms of service and rate limits before building on it. Prefer official APIs. Flag anything that would require scraping a site that prohibits it.
-- **No rehosting copyrighted media.** Link to or use official embeds for brand images and videos rather than downloading and re-serving them.
-- **Secrets stay out of the code.** API keys go in environment variables / a `.env` file that is git-ignored.
-- **Cost-aware.** Prefer free tiers. Tell me before introducing anything that costs money.
-- **Privacy.** Don't store users' personal data unless we've explicitly decided to and why.
-- **No payment handling** of any kind.
-
----
-
-## 12. Engineering habits I'd like (open to discussion)
-
-- Readable code with type hints and clear names over clever code.
-- Each signal as its own module with a consistent interface, so signals can be added, removed, or swapped easily.
-- Basic tests for core logic as we go.
-- Small commits with clear messages.
-- Errors handled gracefully. A single failing data source should produce an `unknown` signal, not crash the whole report.
-
-If any of these slow us down more than they help at a given stage, tell me and we can adjust.
+| Metric | Phase | Where recorded |
+|---|---|---|
+| Extraction accuracy on eval set | 1 | `docs/EVALUATION.md` |
+| Precision / recall / F1 (rules vs model) | 3 | `docs/EVALUATION.md` |
+| p95 scan latency (before/after Phase 5) | 5 | `docs/METRICS.md` |
+| Cache hit rate | 5 | `docs/METRICS.md` |
+| Number of real users who installed the extension | 4+ | `docs/METRICS.md` |
