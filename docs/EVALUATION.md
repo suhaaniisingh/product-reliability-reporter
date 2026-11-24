@@ -60,7 +60,25 @@ Dev, 25 rows, each run 3 times (`--split dev --runs 3`):
 
 Run-to-run variation: 0 rows out of 25 changed across 3 identical runs, for both prompts (150 calls). It exists in principle but was too small to see here.
 
-Held-out `test2`: pending Suhaani's review of the 8 new rows.
+**Held-out `test2` (8 new rows, reviewed by Suhaani, run after tuning ended, 3 repeats, 2026-11-24, prompt at commit `6c66c1d`):**
+
+| Metric | Result |
+|---|---|
+| **Store correct** | **100% (8/8)**, all 3 runs |
+| Brand correct (hashtag brands, generic hashtags, comparison hashtags) | 100% (8/8), all 3 runs |
+| Guess accuracy | 100% (3/3) |
+| False-store rate | 0% (0/3), including the `#fentybeauty dupe` trap |
+| **All fields correct** | **100% (8/8)**, all 3 runs; 0 rows changed between runs |
+| Latency / cost | 1.71 s mean, 2.30 s max; $0.0048 per caption |
+
+```bash
+cd backend && uv run python -m scripts.eval_extraction --split test2 --runs 3
+```
+
+Regression check on the original `test` split (no longer a clean held-out number, because its miss c02 was seen while designing the fix): all fields 100% (10/10), previously 90%.
+
+**Caveat:** 8 rows is a small sample. 100% here means "no failures found", not "never fails". The synthetic-caption caveat above still applies.
+
 
 **Not measured yet:**
 - real (non-synthetic) captions

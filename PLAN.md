@@ -25,7 +25,7 @@ Research on 2026-11-23 showed that TikTok's and Instagram's oEmbed endpoints **n
 
 | Phase | Status | Key metric |
 |---|---|---|
-| 1. Extraction pipeline | **Built 2026-11-23, awaiting approval** | Held-out: store 100% (10/10), all fields 90% (9/10) |
+| 1. Extraction pipeline | **Built, awaiting approval to push** | Held-out: store 100% on both splits; all fields 90% (test) → 100% (test2, after hashtag fix) |
 | 2. Trust signals + rule-based score | Not started | Deployed URL returns score + reasons |
 | 3. Labelled dataset + evaluation | Not started | F1: rules vs. learned model |
 | 4. Chrome extension | Not started | Works on real TikTok/Instagram pages |
