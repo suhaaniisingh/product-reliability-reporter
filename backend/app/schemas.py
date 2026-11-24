@@ -10,6 +10,7 @@ from enum import StrEnum
 from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
 from app.extraction.store_url import normalize_store_url
+from app.signals.base import SignalResult
 
 # Bounds how much text (and therefore how many LLM tokens) one scan can send.
 MAX_CAPTION_CHARS = 5000
@@ -95,6 +96,14 @@ class Extraction(BaseModel):
     notes: str
 
 
+class TrustReport(BaseModel):
+    """Public trust signals about the store. The score, label and reasons are added
+    in a later step; adding fields never breaks existing clients ("expand, then contract")."""
+
+    signals: list[SignalResult]
+
+
 class ScanResponse(BaseModel):
     video: VideoInfo | None  # None when no video_url was sent
     extraction: Extraction
+    trust: TrustReport | None = None  # None when no store was identified, so there's nothing to check

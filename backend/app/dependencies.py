@@ -10,6 +10,7 @@ from functools import lru_cache
 from app.extraction.base import Extractor
 from app.extraction.claude import ClaudeExtractor
 from app.extraction.domain_check import DnsResolver, DomainResolver
+from app.signals.base import Signal
 
 
 @lru_cache
@@ -20,3 +21,9 @@ def get_extractor() -> Extractor:
 
 def get_domain_resolver() -> DomainResolver:
     return DnsResolver()
+
+
+def get_signals() -> list[Signal]:
+    # The real signals (domain age, Safe Browsing, store pages, Shopify, popularity)
+    # are added here one at a time in the next steps.
+    return []

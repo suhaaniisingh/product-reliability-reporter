@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.extraction.base import ExtractionError, ExtractorNotConfigured, LLMExtraction
 from app.extraction.fake import FakeExtractor
+from app.signals.fake import FakeSignal
 from app.schemas import MAX_CAPTION_CHARS
 
 GLOWLAB = LLMExtraction(
@@ -102,3 +103,35 @@ def test_missing_api_key_returns_503_but_store_link_scans_still_work(client: Tes
 
     assert client.post("/api/scan", json={"caption": "serum at glowlab.co"}).status_code == 503
     assert client.post("/api/scan", json={"store_url": "glowlab.co"}).status_code == 200
+
+
+def test_trust_signals_run_on_the_identified_store(client: TestClient, fake_signals: list) -> None:
+    signal = FakeSignal(name="domain_age", label="Domain age", value={"age_days": 21}, explanation="Registered 21 days ago.")
+    fake_signals.append(signal)
+
+    body = client.post("/api/scan", json={"store_url": "https://www.GlowLab.co/serum"}).json()
+
+    assert signal.calls[0].domain == "glowlab.co"
+    assert body["trust"]["signals"] == [{
+        "name": "domain_age", "label": "Domain age", "status": "ok", "value": {"age_days": 21},
+        "explanation": "Registered 21 days ago.", "source": None, "duration_ms": body["trust"]["signals"][0]["duration_ms"],
+    }]
+
+
+def test_no_store_means_no_trust_report(client: TestClient, fake_signals: list) -> None:
+    signal = FakeSignal()
+    fake_signals.append(signal)
+
+    body = client.post("/api/scan", json={"caption": "love this serum"}).json()  # the fake extractor finds no store
+
+    assert body["trust"] is None
+    assert signal.calls == []
+
+
+def test_a_failing_signal_never_breaks_the_scan(client: TestClient, fake_signals: list) -> None:
+    fake_signals.extend([FakeSignal(name="ok"), FakeSignal(name="broken", error=RuntimeError("boom"))])
+
+    response = client.post("/api/scan", json={"store_url": "glowlab.co"})
+
+    assert response.status_code == 200
+    assert [s["status"] for s in response.json()["trust"]["signals"]] == ["ok", "failed"]
