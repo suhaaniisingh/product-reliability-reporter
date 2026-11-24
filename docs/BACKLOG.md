@@ -14,6 +14,10 @@ Each item: what it is, the phase it fits, and where the idea came from.
 
 ## Phase 3: Labelled dataset + evaluation
 
+- **Measure extraction run-to-run variance:** run the eval 3–5 times and report mean ± spread, since Sonnet 5.5 can't be made deterministic. *Source: Phase 1 eval.*
+- **Fix hashtag-only brands** (`#cozyknit` → brand) without bringing back brands guessed from domains. Tune on dev only; the test split is spent, so add fresh held-out rows before re-reporting. *Source: Phase 1 eval, misses c02/c04.*
+- **Add real captions to the eval set**, to check how optimistic the synthetic numbers are. *Source: Phase 1 caveat.*
+
 - Use public scam-domain lists as one label source, recording the source for every label. *Source: CLAUDE.md.*
 
 ## Phase 4: Chrome extension
