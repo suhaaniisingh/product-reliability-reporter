@@ -111,3 +111,34 @@ async def test_model_notes_are_kept() -> None:
     result = await apply_rules(llm(notes="Two products shown; used the main one."), "glowlab.co", FakeResolver())
 
     assert result.notes.startswith("Two products shown")
+
+
+@pytest.mark.parametrize(
+    ("caption", "store_url", "brand"),
+    [
+        ("New drop 🔥 Shop now → www.cozyknitco.com 🧶 #cozyknit #hoodieseason", "www.cozyknitco.com", "cozyknit"),
+        ("no white cast 🧴 sunveilshop.com #sunveil #spf", "sunveilshop.com", "sunveil"),
+        ("glow serum at getglowlab.com #GlowLab", "getglowlab.com", "GlowLab"),  # keeps the hashtag as written
+        ("serum at glowlab.co #glowlab", "glowlab.co", "glowlab"),
+        ("routine ☀️ shopskincare.com #skincare #fyp", "shopskincare.com", None),  # generic tags never count
+        ("hoodie from cozyknitco.com #hoodieseason", "cozyknitco.com", None),  # no hashtag matches
+    ],
+)
+async def test_brand_from_matching_hashtag(caption: str, store_url: str, brand: str | None) -> None:
+    result = await apply_rules(llm(brand=None, store_url=store_url), caption, FakeResolver())
+
+    assert result.brand == brand
+    if brand is not None:
+        assert f"#{brand}" in result.notes  # the reason is shown
+
+
+async def test_model_brand_is_never_overridden_by_a_hashtag() -> None:
+    result = await apply_rules(llm(brand="Cozy Knit Co", store_url="cozyknitco.com"), "cozyknitco.com #cozyknit", FakeResolver())
+
+    assert result.brand == "Cozy Knit Co"
+
+
+async def test_no_hashtag_brand_without_a_store() -> None:
+    result = await apply_rules(llm(brand=None, store_url=None, store_url_source="none"), "love it #cozyknit", FakeResolver())
+
+    assert result.brand is None

@@ -5,6 +5,7 @@ domain that isn't in the caption, or an invented domain. Each rule below is plai
 code, so it's testable, explainable, and doesn't depend on the prompt being followed.
 """
 
+import re
 from dataclasses import dataclass, field
 
 from app.extraction.base import LLMExtraction
@@ -38,6 +39,43 @@ class _Draft:
 
 def _is_not_a_store(domain: str) -> bool:
     return any(domain == d or domain.endswith("." + d) for d in NOT_A_STORE_DOMAINS)
+
+
+# Words stores add around their name in a domain: cozyknitco.com, sunveilshop.com, getglow.com.
+_DOMAIN_SUFFIXES = ("official", "online", "store", "shop", "brand", "hq", "co", "us")
+_DOMAIN_PREFIXES = ("shop", "get", "try", "buy", "the")
+# Topic hashtags that must never become a brand, even if a domain happens to match.
+_GENERIC_HASHTAGS = {
+    "ad", "sponsored", "gifted", "fyp", "foryou", "foryoupage", "viral", "trending", "sale", "shop", "shopping",
+    "skincare", "makeup", "beauty", "fashion", "ootd", "style", "home", "fitness", "tiktokmademebuyit",
+}
+
+
+def _domain_names(domain: str) -> set[str]:
+    """Names a store's domain could be "about": cozyknitco.com -> {cozyknitco, cozyknit}."""
+    names = set()
+    for label in domain.split(".")[:-1]:  # every label except the TLD
+        names.add(label)
+        for suffix in _DOMAIN_SUFFIXES:
+            if label.endswith(suffix) and len(label) > len(suffix) + 2:
+                names.add(label.removesuffix(suffix))
+        for prefix in _DOMAIN_PREFIXES:
+            if label.startswith(prefix) and len(label) > len(prefix) + 2:
+                names.add(label.removeprefix(prefix))
+    return {n.replace("-", "") for n in names}
+
+
+def brand_from_hashtag(caption: str, store_url: str) -> str | None:
+    """A hashtag that matches the store's domain name is the brand: #cozyknit + cozyknitco.com.
+
+    Deterministic backstop for brand names that also read like ordinary words
+    ("cozy knit"), which the model tends to treat as topic tags.
+    """
+    names = _domain_names(store_domain(store_url))
+    for tag in re.findall(r"#(\w+)", caption):
+        if len(tag) >= 3 and tag.lower() not in _GENERIC_HASHTAGS and tag.lower() in names:
+            return tag
+    return None
 
 
 def _appears_in(domain: str, caption: str) -> bool:
@@ -109,9 +147,16 @@ async def apply_rules(
             )
         draft.store_url, draft.source, draft.confidence = user_store_url, StoreUrlSource.USER_PROVIDED, Confidence.HIGH
 
+    # 7. A hashtag matching the store's domain name is the brand, if the model found none.
+    brand = llm.brand
+    if brand is None and draft.store_url is not None:
+        brand = brand_from_hashtag(caption, draft.store_url)
+        if brand is not None:
+            draft.notes.append(f"Brand taken from #{brand}, which matches the store's web address.")
+
     return Extraction(
         product=llm.product,
-        brand=llm.brand,
+        brand=brand,
         store_url=draft.store_url,
         store_url_source=draft.source,
         mentions_link_in_bio=llm.mentions_link_in_bio,

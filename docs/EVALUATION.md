@@ -125,3 +125,7 @@ Every Haiku error is a *missing* answer, never a wrong store. Small sample: 2–
 ```bash
 cd backend && uv run python -m scripts.eval_extraction --split all --model claude-haiku-5-5
 ```
+
+**Follow-up, same day:** a code rule (a hashtag matching the store's domain name becomes the brand; see DECISIONS) fixes c02. Re-scored from cached model answers at $0:
+- Sonnet: dev 27/27, test 10/10 (not a clean measure: c02 motivated the rule), test2 8/8. All 45/45.
+- Haiku: unchanged at 42/45.

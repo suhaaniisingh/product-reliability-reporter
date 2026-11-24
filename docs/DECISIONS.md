@@ -224,3 +224,17 @@ One short entry per decision: the date, what we chose, why, and the alternatives
 - **Result:** live cost per caption $0.0045 → $0.0018; an eval run ~$0.19 → ~$0.03, or $0 for unchanged rows. Accuracy kept on dev and test2 after fixing one regression (see EVALUATION.md).
 - **Caveat on caching in production:** a cache write costs 1.25× and expires after 5 minutes. With sparse traffic, caching can cost slightly more than no caching. Measure with real traffic in Phase 5 before deciding whether to keep it there.
 - **Implementation note:** batch mode builds its schema with the SDK's internal `to_json_output_format` helper, so it is byte-identical to `messages.parse()`. A test locks this in, in case an SDK update moves the helper.
+
+## 2026-11-24: Stay on Claude Sonnet 5.5 for extraction
+
+- **Options:** Sonnet 5.5, or Haiku 5.5 (measured on the same 45 rows: 93% vs 98% all-fields; 0 wrong stores for either; ~16× cheaper; slightly faster).
+- **Chose:** stay on Sonnet (Suhaani).
+- **Why:** more accurate on the held-out rows. At about $0.0018 per scan after the cost work, it's affordable at portfolio traffic, and the daily budget cap protects against abuse.
+- **Revisit:** in Phase 5, with real traffic numbers. Switching is a one-line change behind the `Extractor` interface, and the eval can re-check it for about $0.002.
+
+## 2026-11-24: Code rule: a hashtag matching the store's domain name is the brand
+
+- **Context:** some brand names read like ordinary words (`#cozyknit`), so the model treats them as topic tags even when the store's domain is cozyknitco.com. Prompt changes didn't fix it (5/5 misses).
+- **Chose (Suhaani approved):** a deterministic post-processing rule. If the model found no brand and a hashtag equals the store domain's name (ignoring common affixes such as co/shop/store and get/try/shop), that hashtag becomes the brand, with a note giving the reason. A short list of generic hashtags (`#skincare`, `#fyp`, `#ad`, …) never counts. The model's own brand is never overridden.
+- **Why:** free (no tokens), gives the same answer every time, unit-tested, and consistent with the policy that the brand must be named in the caption (a hashtag is a mention).
+- **Result:** Sonnet 45/45 on all splits, measured from cached answers at $0. The original `test` split isn't a clean measure for this rule, since its row c02 motivated it. Held-out `test2` stays 8/8.
