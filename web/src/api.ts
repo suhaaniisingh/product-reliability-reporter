@@ -36,7 +36,8 @@ export async function scan(request: ScanRequest): Promise<ScanResponse> {
     if (response.status === 422) {
       throw new ScanError(detail ?? 'Please check what you entered and try again.')
     }
-    // 502 (extraction service failed) and 503 (not configured) carry a readable detail.
+    // 429 (too many scans), 502 (extraction service failed) and 503 (not configured,
+    // or the site's daily caption budget is used up) all carry a readable detail.
     throw new ScanError(detail ?? `Something went wrong on our side (HTTP ${response.status}). Please try again.`)
   }
   return (await response.json()) as ScanResponse

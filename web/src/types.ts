@@ -29,7 +29,36 @@ export interface Extraction {
   notes: string
 }
 
+export type SignalStatus = 'ok' | 'failed' | 'timeout'
+
+export interface SignalResult {
+  name: string
+  label: string
+  status: SignalStatus
+  value: Record<string, unknown> | null
+  explanation: string
+  source: string | null // attribution required by some data sources (e.g. Google)
+  duration_ms: number
+}
+
+export interface Reason {
+  points: number
+  text: string
+  signal: string
+  cap: number | null // set when this reason caps the score instead of adding points
+}
+
+export interface TrustReport {
+  score: number // 0-100
+  label: string // "Higher trust" | "Mixed signals" | "Lower trust"
+  confidence: Confidence
+  reasons: Reason[]
+  notes: string[]
+  signals: SignalResult[]
+}
+
 export interface ScanResponse {
   video: VideoInfo | null
   extraction: Extraction
+  trust: TrustReport | null // null when no store was identified
 }

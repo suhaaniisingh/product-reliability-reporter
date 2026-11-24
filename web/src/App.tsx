@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { ScanError, scan } from './api'
-import type { Confidence, Extraction, ScanRequest, ScanResponse, StoreUrlSource, VideoInfo } from './types'
+import type { Confidence, Extraction, Reason, ScanRequest, ScanResponse, SignalResult, StoreUrlSource, TrustReport, VideoInfo } from './types'
 
 // How each store source is shown. Text always accompanies colour (accessibility).
 const SOURCE_BADGES: Record<StoreUrlSource, { label: string; style: string }> = {
@@ -55,7 +55,8 @@ export default function App() {
     <main className="mx-auto max-w-xl px-4 py-10">
       <h1 className="text-2xl font-bold text-slate-900">Reliability Reporter</h1>
       <p className="mt-1 text-slate-600">
-        Paste a product video's caption, the store link, or both, to see what's being sold and by which store.
+        Paste a product video's caption, the store link, or both, to see which store is selling it and how
+        trustworthy it looks, with the evidence behind the score.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
@@ -112,6 +113,9 @@ export default function App() {
         >
           {loading ? 'Scanning…' : 'Scan'}
         </button>
+        <p className="text-xs text-slate-500">
+          To check a store, its link is looked up with Google Safe Browsing and its public pages are visited.
+        </p>
       </form>
 
       {error && (
@@ -120,12 +124,20 @@ export default function App() {
         </p>
       )}
 
-      {result && <ResultView extraction={result.extraction} video={result.video} />}
+      {result && <ResultView extraction={result.extraction} video={result.video} trust={result.trust} />}
     </main>
   )
 }
 
-function ResultView({ extraction, video }: { extraction: Extraction; video: VideoInfo | null }) {
+function ResultView({
+  extraction,
+  video,
+  trust,
+}: {
+  extraction: Extraction
+  video: VideoInfo | null
+  trust: TrustReport | null
+}) {
   const badge = SOURCE_BADGES[extraction.store_url_source]
   return (
     <section className="mt-8 flex flex-col gap-3" aria-live="polite">
@@ -140,6 +152,8 @@ function ResultView({ extraction, video }: { extraction: Extraction; video: Vide
         <p className="mt-1 break-all text-slate-800">{extraction.store_url ?? 'No store found'}</p>
         <p className="mt-1 text-sm text-slate-500">{CONFIDENCE_LABELS[extraction.confidence]}</p>
       </div>
+
+      {trust && <TrustView trust={trust} />}
 
       {extraction.mentions_link_in_bio && extraction.store_url_source !== 'user_provided' && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -173,5 +187,101 @@ function Field({ label, value }: { label: string; value: string | null }) {
       <dt className="font-medium text-slate-700">{label}</dt>
       <dd className="text-slate-900">{value || <span className="text-slate-400">—</span>}</dd>
     </>
+  )
+}
+
+// Colour follows the label; the label text is always shown too (never colour alone).
+const LABEL_STYLES: Record<string, string> = {
+  'Higher trust': 'bg-green-100 text-green-800',
+  'Mixed signals': 'bg-amber-100 text-amber-800',
+  'Lower trust': 'bg-red-100 text-red-800',
+}
+
+function TrustView({ trust }: { trust: TrustReport }) {
+  return (
+    <div className="rounded-lg border border-slate-200 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-medium text-slate-900">Trust score</span>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${LABEL_STYLES[trust.label] ?? 'bg-slate-200 text-slate-700'}`}>
+          {trust.label}
+        </span>
+      </div>
+      <p className="mt-1 text-3xl font-bold text-slate-900">
+        {trust.score}
+        <span className="text-base font-normal text-slate-500"> / 100</span>
+      </p>
+      <p className="text-sm text-slate-500">{CONFIDENCE_LABELS[trust.confidence]} (how complete the evidence is)</p>
+
+      {trust.notes.map((note) => (
+        <p key={note} className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {note}
+        </p>
+      ))}
+
+      <h3 className="mt-3 text-sm font-semibold text-slate-800">Why (every store starts at 50)</h3>
+      <ul className="mt-1 flex flex-col gap-1">
+        {trust.reasons.map((reason) => (
+          <ReasonRow key={`${reason.signal}:${reason.text}`} reason={reason} />
+        ))}
+      </ul>
+
+      <details className="mt-3 text-sm">
+        <summary className="cursor-pointer text-slate-700">Details of each check</summary>
+        <ul className="mt-2 flex flex-col gap-2">
+          {trust.signals.map((signal) => (
+            <SignalDetail key={signal.name} signal={signal} />
+          ))}
+        </ul>
+      </details>
+
+      <p className="mt-3 text-xs text-slate-500">
+        This score summarises public evidence about the store. It isn't a guarantee either way.
+      </p>
+    </div>
+  )
+}
+
+function ReasonRow({ reason }: { reason: Reason }) {
+  const badge =
+    reason.cap !== null
+      ? { text: `capped at ${reason.cap}`, style: 'bg-red-100 text-red-800' }
+      : reason.points > 0
+        ? { text: `+${reason.points}`, style: 'bg-green-100 text-green-800' }
+        : reason.points < 0
+          ? { text: `${reason.points}`, style: 'bg-red-100 text-red-800' }
+          : { text: '0', style: 'bg-slate-100 text-slate-600' }
+  return (
+    <li className="flex items-start gap-2 text-sm">
+      <span className={`w-24 shrink-0 rounded px-1.5 py-0.5 text-center text-xs font-semibold ${badge.style}`}>{badge.text}</span>
+      <span className="text-slate-800">{reason.text}</span>
+    </li>
+  )
+}
+
+// Some sources require attribution with a link ("Advisory provided by Google: <url>").
+function SourceLine({ source }: { source: string }) {
+  const match = source.match(/^(.*?):\s*(https?:\/\/\S+)$/)
+  if (!match) return <p className="text-xs text-slate-500">{source}</p>
+  return (
+    <p className="text-xs text-slate-500">
+      <a href={match[2]} target="_blank" rel="noopener noreferrer" className="underline">
+        {match[1]}
+      </a>
+    </p>
+  )
+}
+
+function SignalDetail({ signal }: { signal: SignalResult }) {
+  return (
+    <li className="rounded border border-slate-100 p-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium text-slate-800">{signal.label}</span>
+        <span className="text-xs text-slate-500">
+          {signal.status === 'ok' ? 'checked' : signal.status === 'timeout' ? 'timed out' : 'not checked'}
+        </span>
+      </div>
+      <p className="text-slate-700">{signal.explanation}</p>
+      {signal.source && <SourceLine source={signal.source} />}
+    </li>
   )
 }
