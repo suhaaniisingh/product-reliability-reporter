@@ -96,9 +96,26 @@ class Extraction(BaseModel):
     notes: str
 
 
-class TrustReport(BaseModel):
-    """Public trust signals about the store. The score, label and reasons are added
-    in a later step; adding fields never breaks existing clients ("expand, then contract")."""
+class Reason(BaseModel):
+    """One line of the score's explanation: what was found and what it did to the score."""
+
+    points: int  # added to (or subtracted from) the starting 50; 0 = context only
+    text: str
+    signal: str  # which signal it came from ("combination" for combined rules)
+    cap: int | None = None  # set when this reason caps the score instead (Safe Browsing)
+
+
+class TrustScore(BaseModel):
+    score: int  # 0-100; always 50 + the sum of the reasons' points, then any cap
+    label: str  # "Higher trust" / "Mixed signals" / "Lower trust"
+    confidence: Confidence  # how complete the evidence is (drops when checks fail)
+    reasons: list[Reason]
+    notes: list[str]
+
+
+class TrustReport(TrustScore):
+    """The score plus each signal's raw result. Fields were added to this object
+    over time without changing existing ones ("expand, then contract")."""
 
     signals: list[SignalResult]
 

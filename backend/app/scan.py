@@ -10,6 +10,7 @@ from app.extraction.postprocess import apply_rules
 from app.extraction.video_url import parse_video_url
 from app.schemas import Confidence, Extraction, ScanRequest, ScanResponse, StoreUrlSource, TrustReport
 from app.signals.base import Signal, Store
+from app.scoring import score_signals
 from app.signals.runner import run_signals
 
 
@@ -29,7 +30,8 @@ def _from_store_url_only(store_url: str) -> Extraction:
 async def _trust_report(extraction: Extraction, signals: list[Signal]) -> TrustReport | None:
     if extraction.store_url is None:
         return None  # nothing to check
-    return TrustReport(signals=await run_signals(signals, Store.from_url(extraction.store_url)))
+    results = await run_signals(signals, Store.from_url(extraction.store_url))
+    return TrustReport(**score_signals(results, extraction.store_url_source).model_dump(), signals=results)
 
 
 async def run_scan(
