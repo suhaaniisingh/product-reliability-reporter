@@ -154,7 +154,7 @@ One short entry per decision: the date, what we chose, why, and the alternatives
 
 ## 2026-11-23: Change an API and its callers together ("expand, then contract")
 
-- **Context:** replacing `/api/check` with `/api/scan` left the web page calling the removed endpoint for five commits (`3b00da7` to `bc777e2`). Tests passed throughout, but the page didn't work in those commits.
+- **Context:** replacing `/api/check` with `/api/scan` left the web page calling the removed endpoint for five commits (`d6d008c` to `74951b0`). Tests passed throughout, but the page didn't work in those commits.
 - **Options:** rewrite history to merge those commits (they aren't pushed), or leave history as is and adopt a rule.
 - **Chose:** leave history, adopt the rule. When an API changes shape, either update its callers in the same commit, or first add the new endpoint alongside the old one ("expand"), move the callers over, and only then remove the old one ("contract").
 - **Why:** rewriting history would lose the small step-by-step commits. Expand-then-contract is how production teams change APIs without downtime. It will matter more from Phase 4, when a released extension can't be updated at the same moment as the server.

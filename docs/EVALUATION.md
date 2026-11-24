@@ -14,7 +14,7 @@ Measured results, one section per metric. Each entry records the date, the model
 - 10 held-out rows is a small sample: one row is 10 percentage points.
 - `brand_only` expected domains reflect the brands' official sites as of 2026-11.
 
-**Results: 2026-11-23, `claude-sonnet-5-5`, effort low, prompt at commit `326d67d`.**
+**Results: 2026-11-23, `claude-sonnet-5-5`, effort low, prompt at commit `cc93244`.**
 
 Held-out test split (10 rows), run once after all tuning was finished:
 
@@ -55,12 +55,12 @@ Dev, 25 rows, each run 3 times (`--split dev --runs 3`):
 
 | Prompt | Store | Brand | All fields | Rows changing between runs |
 |---|---|---|---|---|
-| Before (commit `326d67d`) | 100% ×3 | 96% ×3 | 96% ×3 | 0 of 25 |
+| Before (commit `cc93244`) | 100% ×3 | 96% ×3 | 96% ×3 | 0 of 25 |
 | After: brand hashtags count even when they match the domain; generic and comparison hashtags don't | 100% ×3 | 100% ×3 | 100% ×3 | 0 of 25 |
 
 Run-to-run variation: 0 rows out of 25 changed across 3 identical runs, for both prompts (150 calls). It exists in principle but was too small to see here.
 
-**Held-out `test2` (8 new rows, reviewed by Suhaani, run after tuning ended, 3 repeats, 2026-11-24, prompt at commit `6c66c1d`):**
+**Held-out `test2` (8 new rows, reviewed by Suhaani, run after tuning ended, 3 repeats, 2026-11-24, prompt at commit `2db8755`):**
 
 | Metric | Result |
 |---|---|
