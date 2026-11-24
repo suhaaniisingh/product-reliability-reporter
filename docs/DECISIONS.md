@@ -103,3 +103,40 @@ One short entry per decision: the date, what we chose, why, and the alternatives
 - **Chose:** option 2. At least one of `caption` or `store_url` is required. A store URL supplied by the user takes priority over an extracted one (`store_url_source: "user_provided"`). If only `store_url` is sent, no LLM call is made.
 - **Why:** it covers the "link in bio" and no-URL cases: the user opens the bio link and pastes it. Scans also keep working when extraction fails (graceful degradation). Later, Phase 2 signals can be tested on known stores without depending on extraction quality. A single endpoint keeps one request/response shape for the web page and the extension. A separate endpoint (option 3) would duplicate the response contract for little benefit.
 - **Consequence:** a basic store-URL normalizer moves into Phase 1, because users will paste `glowlab.co` without `https://`. Full normalization (tracking parameters, registrable domain) stays in the Phase 2 backlog item.
+
+## 2026-11-23: Caption survey dropped; eval set drafted by case type instead
+
+- **Supersedes:** "Survey real captions before building extraction" (same day).
+- **Options:** (1) hand-collect about 30 real captions first and count what they contain; (2) build the eval set directly from the case types we already know about (URL in caption, brand only, link in bio, code only, no store, tricky).
+- **Chose:** option 2 (Suhaani's call).
+- **Why:** the case types are already known, and the optional `store_url` field covers the captions that don't contain a store, so the survey's answer wouldn't change what gets built. Trade-off: we don't measure how common each case is in real feeds.
+
+## 2026-11-23: Work phase by phase, with an approval gate between phases
+
+- **Chose:** each phase starts with a decision proposal that Suhaani approves, then gets built in small commits, then ends with a report (what was built, metrics, how to verify, known weaknesses, next phase's proposal). The next phase starts only after explicit approval. Any decision that comes up mid-phase and wasn't approved stops the work until Suhaani decides. The plan and status live in `PLAN.md`.
+- **Why:** Suhaani has to be able to defend every decision, so none get made silently.
+
+## 2026-11-23: Extraction LLM: Claude Sonnet 5.5, behind an `Extractor` interface
+
+- **Options:** Claude Haiku 5.5 ($0.10 / $0.50 per million input/output tokens), Claude Sonnet 5.5 ($2 / $10), Claude Opus 5.5 ($4 / $20), Google Gemini (possibly a free tier), a local model via Ollama.
+- **Chose:** Claude Sonnet 5.5 (`claude-sonnet-5-5`), Suhaani's choice.
+  - Called through the official `anthropic` Python SDK with structured outputs (`messages.parse` + the Pydantic model).
+  - Low effort, since extraction is a simple task.
+  - Anthropic's server-side refusal fallback is on.
+- **Why:** a mid-tier model: more capable than Haiku on the judgement-heavy cases (guessing a brand's store, tricky captions) at half Opus's price. At roughly $0.003 per caption, cost doesn't matter at this scale.
+- **The interface matters:** the API depends on an `Extractor` protocol, not on the SDK. That allows swapping providers, comparing them on the eval set, and testing offline with a fake.
+
+## 2026-11-23: Guess the store from the brand name, marked as guessed and checked
+
+- **Options:** (1) never guess: `store_url` stays empty unless the caption contains it; (2) guess and present the guess as fact; (3) guess, mark it as guessed, and check it.
+- **Chose:** option 3. Suhaani: the project has little value if it can't get from a brand name to a store.
+  - The LLM proposes the brand's official domain with `store_url_source: "guessed_from_brand"`, and confidence is capped at `medium`.
+  - Code checks the domain exists (DNS lookup) and drops the guess if it doesn't.
+  - The eval reports guess accuracy separately.
+- **Risks to watch:** the model may invent plausible domains for small brands (the DNS check catches non-existent ones, not wrong-but-real ones). A guess also points to the *official* store, while the video might promote a different seller, which the "guessed" label makes visible.
+
+## 2026-11-23: Eval set: about 30 synthetic captions, drafted by Claude and reviewed by Suhaani
+
+- **Options:** synthetic captions drafted by Claude and reviewed; synthetic plus a few real ones; all written by Suhaani.
+- **Chose:** drafted by Claude, with the expected answers reviewed by Suhaani. About 20 rows are used for tuning the prompt and about 10 are held out for the reported number.
+- **Why:** fast, and it covers every case type on purpose. Caveat recorded in `docs/EVALUATION.md`: synthetic captions may be cleaner than real ones, so accuracy may be optimistic. Tuning the prompt on the same rows that are reported would inflate the score further, hence the held-out split.

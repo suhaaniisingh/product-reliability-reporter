@@ -33,7 +33,7 @@ This is primarily a **portfolio project for SWE / AI-ML / cloud internship recru
 - **Backend:** Python + FastAPI
 - **Web page (paste-a-link, mobile-friendly):** React + TypeScript (or a minimal page served by the backend in Phase 1)
 - **Browser extension:** Chrome, Manifest V3, TypeScript (Phase 4)
-- **LLM extraction:** provider TBD. Keep it behind an interface so it can be swapped and evaluated.
+- **LLM extraction:** Claude Sonnet 5.5 via the `anthropic` SDK (decided 2026-11-23). Keep it behind an interface so it can be swapped and evaluated.
 - **Database / cache / job queue:** decide in Phase 5 (e.g. Postgres + Redis). Don't add them before they're needed.
 - **Hosting:** must be free (free tiers only).
 
@@ -55,9 +55,9 @@ Design principles:
 ## Phases
 
 ### Phase 1 — Extraction pipeline (walking skeleton)
-Goal: paste a video link → get structured extraction back.
-- `POST /scan` takes a video URL (or raw caption text as a fallback).
-- Fetch public metadata (caption, creator) using official/oEmbed endpoints. **Verify current availability and terms first** and report back.
+Goal: paste a video's caption (and/or the store link) → get structured extraction back.
+- `POST /scan` takes caption text and/or a store URL pasted by the user, plus an optional video URL that is parsed locally (platform, video ID, TikTok handle).
+- No platform metadata is fetched: TikTok's and Instagram's oEmbed endpoints no longer return captions or creators, and Meta's terms forbid extracting them from embed HTML (checked 2026-11-23, see `docs/DECISIONS.md`).
 - LLM extracts `{product, brand, store_url, confidence, notes}` as validated structured output (e.g. Pydantic).
 - Handle messy cases: "link in bio", discount codes only, no store mentioned.
 - Small eval set: ~30 hand-labelled captions in `data/extraction_eval.csv`, plus a script that reports extraction accuracy.

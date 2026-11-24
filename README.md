@@ -1,8 +1,8 @@
-# Trust Checker (working title)
+# Social Commerce Trust Checker (working title)
 
-A tool for buyers who find products through influencer videos and ads. Point it at an online store and get a **trust report**: a short list of evidence-based signals about whether the store is real and likely to deliver.
+Tells a shopper whether the store behind a TikTok/Instagram product promo looks trustworthy, and **why**. Paste the video's caption (or the store link), and the system extracts the product, brand and store, collects public trust signals about the store, and returns an explainable score.
 
-> **Status: Phase 1 (walking skeleton).** Every layer works end to end, but the API returns the **same placeholder report for every URL**. Real signals (business age, transparency, policies, reviews, photo origin) arrive in Phase 2.
+> **Status: Phase 1 (extraction pipeline) in progress.** See [`PLAN.md`](PLAN.md) for the phase plan and status. The code below is still the earlier walking skeleton: `POST /api/check` returns the same placeholder report for every URL, and it is being replaced by `POST /api/scan`. This README is rewritten at the end of Phase 1.
 
 ## How it fits together
 
@@ -12,8 +12,9 @@ A tool for buyers who find products through influencer videos and ads. Point it 
 
 - **`backend/`**: FastAPI app. `POST /api/check` takes `{"url": "..."}`, validates it, and returns a report.
 - **`web/`**: React + TypeScript page (Vite, Tailwind CSS) with a paste box that calls the API and renders each signal.
-- **`DECISIONS.md`**: every design decision, the options considered, and why.
-- **`OPEN_QUESTIONS.md`**: what's still undecided.
+- **`PLAN.md`**: the phase-by-phase plan and current status.
+- **`docs/DECISIONS.md`**: every design decision, the options considered, and why.
+- **`docs/BACKLOG.md`**: ideas parked for later phases.
 
 ## Prerequisites
 
@@ -85,9 +86,4 @@ Statuses: `good`, `warning`, `danger`, `unknown` ("not enough information" is a 
 
 ## Roadmap
 
-1. ~~Walking skeleton~~ ✅
-2. Real signals, one module at a time
-3. Scoring over signal combinations + evaluation on labeled stores
-4. Chrome extension
-5. Video → seller resolution (TikTok/Instagram links)
-6. Hardening: parallel signal collection, caching, deployment, PWA
+See [`PLAN.md`](PLAN.md).
