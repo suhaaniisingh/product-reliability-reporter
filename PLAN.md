@@ -142,6 +142,8 @@ The cases where the user supplies their own store link don't involve the LLM, so
 
 ## Phase 4: Chrome extension (outline)
 
+- **Planned feature (2026-11-24):** read the brand and product from the visible video frame. On click, the extension captures the tab (`chrome.tabs.captureVisibleTab`, `activeTab` permission), crops to the video, and sends it to `/api/scan`, where Claude reads packaging, logos and on-screen text. Check TikTok's and Instagram's terms first; never store the images.
+
 - **Decisions I'll propose:**
   - the permissions needed, with an explanation of each
   - how the caption is obtained (a terms check on reading the page first; see BACKLOG)

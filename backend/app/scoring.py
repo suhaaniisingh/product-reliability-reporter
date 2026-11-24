@@ -66,10 +66,12 @@ def score_signals(signals: list[SignalResult], store_source: StoreUrlSource) -> 
         rank = ok["popularity"].get("rank")
         if rank is not None and rank <= 10_000:
             add(15, f"Among the world's 10,000 most-visited sites (rank {rank:,})", "popularity")
-        elif rank is not None:
+        elif rank is not None and rank <= 50_000:
             add(10, f"Among the world's 50,000 most-visited sites (rank {rank:,})", "popularity")
+        elif rank is not None:
+            add(5, f"Among the world's 100,000 most-visited sites (rank {rank:,})", "popularity")
         else:
-            add(0, "Not among the 50,000 most-visited sites (normal for small shops)", "popularity")
+            add(0, "Not among the 100,000 most-visited sites (normal for small shops)", "popularity")
 
     if "store_pages" in ok:
         pages = ok["store_pages"]

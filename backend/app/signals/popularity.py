@@ -1,9 +1,9 @@
-"""Site popularity: is the store among the world's 50,000 most-visited sites?
+"""Site popularity: is the store among the world's 100,000 most-visited sites?
 
 Uses the Tranco list (tranco-list.eu), a research ranking that combines several
 traffic sources and is hardened against manipulation. scripts/fetch_tranco.py
 downloads it when the container is built; here it's loaded once into memory
-(50,000 domains, a few MB).
+(100,000 domains, about 10 MB in memory).
 
 Being on the list is real evidence of an established site, so it adds points.
 Not being on it means nothing (most honest small shops aren't), so it never
@@ -19,7 +19,7 @@ from pathlib import Path
 from app.signals.base import Finding, SignalUnavailable, Store
 from app.signals.domains import registrable_domain
 
-DEFAULT_LIST = Path(__file__).resolve().parents[2] / ".cache" / "tranco_top50k.csv"
+DEFAULT_LIST = Path(__file__).resolve().parents[2] / ".cache" / "tranco_top.csv"
 ATTRIBUTION = "Popularity data: Tranco list (https://tranco-list.eu)"
 
 

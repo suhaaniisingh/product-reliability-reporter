@@ -64,7 +64,7 @@ def test_domain_age_bands(days: int, points: int) -> None:
     assert age_reason.points == points
 
 
-@pytest.mark.parametrize(("rank", "points"), [(1, 15), (10_000, 15), (10_001, 10), (50_000, 10), (None, 0)])
+@pytest.mark.parametrize(("rank", "points"), [(1, 15), (10_000, 15), (10_001, 10), (50_000, 10), (50_001, 5), (100_000, 5), (None, 0)])
 def test_popularity_bands_never_penalise(rank: int | None, points: int) -> None:
     [reason] = score_signals([ok("popularity", rank=rank)], IN_CAPTION).reasons
 

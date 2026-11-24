@@ -1,9 +1,9 @@
-"""Download the Tranco top-sites list and keep the top 50,000 domains.
+"""Download the Tranco top-sites list and keep the top 100,000 domains.
 
     uv run python -m scripts.fetch_tranco
 
 Run when the container is built (see Dockerfile) and once locally for
-development. Writes backend/.cache/tranco_top50k.csv (git-ignored) plus a small
+development. Writes backend/.cache/tranco_top.csv (git-ignored) plus a small
 .json file recording the download date.
 """
 
@@ -19,7 +19,7 @@ import httpx
 from app.signals.popularity import DEFAULT_LIST
 
 URL = "https://tranco-list.eu/top-1m.csv.zip"
-KEEP = 50_000
+KEEP = 100_000  # raised from 50,000 on 2026-11-24 (Suhaani)
 
 
 def main() -> int:

@@ -314,3 +314,9 @@ Suhaani approved all of these at once, before the build started.
 
 - **Options:** (a) accept ~5 s for the first visitor after ~15 idle minutes, at no cost; (b) a Cloud Scheduler keep-warm ping to `/api/warmup` every 10 minutes (probably ~free, one more moving part); (c) `min-instances 1` (no cold starts, but an always-on instance costs money every month).
 - **Chose:** (a) (Suhaani). The app currently has one user, so the extra complexity and cost aren't justified. (b) is in the backlog for when there are real users. Keeping `min-instances 0` is a deliberate cost-versus-latency trade-off.
+
+## 2026-11-24: Changes after Suhaani's first hands-on test
+
+- **Popularity list: top 100,000** (was 50,000), with a new band: ranks 50,000–100,000 score **+5** (top 10k +15, 10k–50k +10, not listed 0). About 10 MB in memory. Effect: cerave.com (rank 88,330) now gets +5.
+- **Safe Browsing stays one-sided:** a listing caps the score at 10, and not being listed scores 0. Almost every site, including most new scam shops, isn't listed, so a bonus for "not listed" would shift every score up without telling stores apart. Suhaani agreed.
+- **Reading the brand from a video frame:** deferred to the Chrome extension (Phase 4), which can capture the visible frame when the user clicks. The platforms' public endpoints don't provide images, and downloading frames would be scraping. A manual screenshot upload was considered and not built for now; the server side (an LLM reading the image) would be shared by both.
