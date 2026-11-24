@@ -9,7 +9,7 @@ def test_eval_csv_is_valid() -> None:
     rows = load_rows(DEFAULT_CSV)
 
     assert len(rows) >= 30
-    assert {r.split for r in rows} == {"dev", "test"}
+    assert {r.split for r in rows} == {"dev", "test", "test2"}
 
 
 @pytest.mark.parametrize(

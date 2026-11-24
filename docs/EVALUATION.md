@@ -43,11 +43,25 @@ cd backend && uv run python -m scripts.eval_extraction --split test
 | 3 | "brand only when the caption names it" | 19/20 | c04 brand given only as a hashtag was skipped |
 
 **What the misses show.**
-- **Brands that appear only as a hashtag** (`#cozyknit`, `#summitgear`) are skipped since the "brand only when named" rule was added (test c02, dev c04). This is a systematic weakness, not noise; the next prompt change should target it, measured on dev only.
-- **The same caption can give different answers on different runs** (dev c03: no brand on run 1, "Lumora Design" on run 2, with the same rules). Sonnet 5.5 doesn't accept sampling settings like `temperature`, so single-run numbers carry noise. On 10 rows, one row is 10 points.
+- **Hashtag brands that match the store's domain** (`#cozyknit` with cozyknitco.com, `#summitgear` with summitgear.ca) were skipped every time: the "don't take the brand from a web address" rule overrode the hashtag. Brands that appear *only* as a hashtag were fine. Fixed below.
+- **Correction (2026-11-23):** an earlier version of this section said dev c03 changed answer because of model randomness. That was wrong. The prompt changed between those two runs (the LIB line was added), and that change moved c03. Repeated runs with an unchanged prompt show no randomness on these rows (below).
 - **Store extraction held up on the hard cases:** link aggregators, a charity URL, a "Dior dupe" comparison, a prompt-injection caption naming a scam domain, and TikTok Shop.
 
+### Fix: hashtag brands (2026-11-23)
+
+New rows: 5 in dev (including negative cases where generic hashtags like `#skincare` and `#fyp` must not become brands) and 8 in a fresh held-out split, `test2`. The original `test` split can't measure this fix, because its miss (c02) was seen while designing it.
+
+Dev, 25 rows, each run 3 times (`--split dev --runs 3`):
+
+| Prompt | Store | Brand | All fields | Rows changing between runs |
+|---|---|---|---|---|
+| Before (commit `326d67d`) | 100% ×3 | 96% ×3 | 96% ×3 | 0 of 25 |
+| After: brand hashtags count even when they match the domain; generic and comparison hashtags don't | 100% ×3 | 100% ×3 | 100% ×3 | 0 of 25 |
+
+Run-to-run variation: 0 rows out of 25 changed across 3 identical runs, for both prompts (150 calls). It exists in principle but was too small to see here.
+
+Held-out `test2`: pending Suhaani's review of the 8 new rows.
+
 **Not measured yet:**
-- run-to-run variance (repeat runs, report mean ± spread)
 - real (non-synthetic) captions
 - how often a guessed domain is real but wrong (the eval only has well-known brands for guesses)

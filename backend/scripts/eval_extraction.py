@@ -1,7 +1,8 @@
 """Measure extraction quality on data/extraction_eval.csv.
 
     uv run python -m scripts.eval_extraction                 # dev split (for tuning the prompt)
-    uv run python -m scripts.eval_extraction --split test    # held-out split: the number we report
+    uv run python -m scripts.eval_extraction --split test2   # held-out split: the number we report
+    uv run python -m scripts.eval_extraction --runs 3        # repeat to see run-to-run variation
     uv run python -m scripts.eval_extraction --dry-run       # check the CSV and scoring, no API calls
 
 Runs the same pipeline as the API (Claude extractor, then the deterministic rules
@@ -46,6 +47,9 @@ PRICE_OUT_PER_MTOK = 10.00
 
 CASE_TYPES = {"explicit_url", "brand_only", "link_in_bio", "code_only", "no_store", "tricky"}
 SOURCES = {"in_caption", "guessed_from_brand", "none"}
+# test = first held-out split (used 2026-11-23, then seen while fixing hashtag brands);
+# test2 = fresh held-out rows for reporting after that fix.
+SPLITS = {"dev", "test", "test2"}
 FIELDS = ("store", "source", "product", "brand", "discount_code", "link_in_bio")
 
 
@@ -89,7 +93,7 @@ def load_rows(path: Path) -> list[EvalRow]:
                 discount_code=record["expected_discount_code"], notes=record["notes"],
             )
             problems = [
-                row.split not in {"dev", "test"} and "split must be dev or test",
+                row.split not in SPLITS and f"split must be one of {sorted(SPLITS)}",
                 row.case_type not in CASE_TYPES and f"unknown case_type {row.case_type!r}",
                 row.source not in SOURCES and f"unknown expected_store_url_source {row.source!r}",
                 record["expected_link_in_bio"].strip().lower() not in {"true", "false"} and "expected_link_in_bio must be true/false",
@@ -247,9 +251,46 @@ def report(results: list[RowResult], split: str, dry_run: bool) -> str:
     return "\n".join(lines)
 
 
+def _all_ok(r: RowResult) -> bool:
+    return all(v is not False for v in r.correct.values())
+
+
+def consistency_report(runs: list[list[RowResult]]) -> str:
+    """For --runs N: the spread of the headline numbers, and which rows changed."""
+    n = len(runs)
+    header = "| Metric | " + " | ".join(f"Run {i + 1}" for i in range(n)) + " | Mean |"
+    lines = [f"### Consistency over {n} runs ({len(runs[0])} rows each)", "", header, "|---" * (n + 2) + "|"]
+    for name, check in [
+        ("store", lambda r: r.correct["store"]),
+        ("brand", lambda r: r.correct["brand"]),
+        ("all fields correct", _all_ok),
+    ]:
+        rates = []
+        for results in runs:
+            values = [check(r) for r in results if check(r) is not None]
+            rates.append(100 * sum(values) / len(values) if values else 0.0)
+        lines.append(f"| {name} | " + " | ".join(f"{x:.0f}%" for x in rates) + f" | {statistics.mean(rates):.0f}% |")
+
+    lines += ["", "Rows that were wrong in at least one run (✓ = all fields right in that run):", ""]
+    unstable = 0
+    for i, row_results in enumerate(zip(*runs)):
+        marks = ["✓" if _all_ok(r) else "✗" for r in row_results]
+        if "✗" in marks:
+            unstable += "✓" in marks
+            r = row_results[0]
+            brands = sorted({str(x.extraction.brand) if x.extraction else "error" for x in row_results})
+            stores = sorted({str(x.extraction.store_url) if x.extraction else "error" for x in row_results})
+            lines.append(f"- `{r.row.id}` ({r.row.case_type}) {' '.join(marks)}  brand={brands} store={stores}")
+    lines += ["", f"Rows that flipped between right and wrong: {unstable}"]
+    cost = sum(r.input_tokens * PRICE_IN_PER_MTOK + r.output_tokens * PRICE_OUT_PER_MTOK for rs in runs for r in rs) / 1e6
+    lines.append(f"Total estimated cost: ${cost:.4f}")
+    return "\n".join(lines)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--split", choices=["dev", "test", "all"], default="dev")
+    parser.add_argument("--split", choices=[*sorted(SPLITS), "all"], default="dev")
+    parser.add_argument("--runs", type=int, default=1, help="repeat the eval N times and report the spread")
     parser.add_argument("--dry-run", action="store_true", help="score the expected answers against themselves (no API calls)")
     parser.add_argument("--csv", type=Path, default=DEFAULT_CSV)
     args = parser.parse_args()
@@ -257,11 +298,13 @@ def main() -> int:
     load_dotenv(REPO_ROOT / "backend" / ".env", override=False)
     rows = [r for r in load_rows(args.csv) if args.split == "all" or r.split == args.split]
     try:
-        results = asyncio.run(run(rows, args.dry_run))
+        runs = [asyncio.run(run(rows, args.dry_run)) for _ in range(max(1, args.runs))]
     except ExtractorNotConfigured as error:
         print(f"{error} (or use --dry-run)", file=sys.stderr)
         return 1
-    print(report(results, args.split, args.dry_run))
+    print(report(runs[-1], args.split, args.dry_run))
+    if len(runs) > 1:
+        print("\n" + consistency_report(runs))
     return 0
 
 

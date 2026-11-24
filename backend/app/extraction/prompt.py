@@ -19,8 +19,12 @@ it, and set store_url_source to guessed_from_brand. Never invent a plausible-loo
 - Otherwise store_url is null and store_url_source is none.
 
 Other fields:
-- brand is set only when the caption names it (in text, a hashtag or an @mention). Don't \
-derive it from a web address alone; leave it null.
+- brand is set only when the caption names it: in text, as an @mention, or as a hashtag \
+that is a brand name (#glowrecipe, #mejuri). A brand hashtag counts even when the same \
+name also appears in the web address. Generic topic hashtags (#skincare, #ootd, #fyp, \
+#ad, #tiktokmademebuyit) are not brands. A brand mentioned only as a comparison \
+("a Charlotte Tilbury dupe") is not the brand being sold. Don't derive a brand from a \
+web address alone; leave it null.
 - If several products are promoted, use the main one and list the others in notes.
 - discount_code is the code itself (for example GLOW20), without words like "code".
 - mentions_link_in_bio is true for any way of pointing to the creator's bio or profile \
