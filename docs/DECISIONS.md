@@ -1,7 +1,8 @@
 # Decisions
 
-One short entry per decision: what we chose, what else we considered, and why.
+One short entry per decision: the date, what we chose, why, and the alternatives we considered. Newest entries are at the bottom.
 
+> Entries dated 2026-11-11 to 2026-11-13 were made under the original project brief (trust report with five fixed signals, payment guidance). They were copied here from the old root `DECISIONS.md`. Phase numbers in those entries refer to the old roadmap. The tooling decisions in them (FastAPI, uv, React + TypeScript, Vite proxy, `/api` prefix, committing to `main`) still stand unless a later entry supersedes them.
 ---
 
 ## 2026-11-11: Backend language and framework: Python + FastAPI
@@ -82,3 +83,23 @@ One short entry per decision: what we chose, what else we considered, and why.
 - **Options:** plain CSS (recommended at the time), Tailwind CSS, a component library (shadcn/ui, MUI).
 - **Chose:** Tailwind CSS v4 (via its Vite plugin).
 - **Why:** Utility classes are written directly in the JSX, so styling stays next to the markup it affects, and it's widely used in industry. Each class maps to a single CSS property (`px-4` = horizontal padding), so it still teaches the underlying CSS concepts, unlike a component library that hides them. Tailwind only ships the classes actually used, so the CSS stays small (~3 KB gzipped).
+
+## 2026-11-23: Project reframed around extraction, public signals and an explainable score
+
+- **Options:** (1) keep the original brief: a store trust report with five fixed signals, safe-payment guidance, and the video-to-seller step left for late in the roadmap; (2) the reframed brief: video caption → extract product/brand/store → public trust signals → explainable score, with a measurable result at the end of every phase.
+- **Chose:** option 2. The payment layer (escrow, protected checkout, payment tips) is removed completely, and so is any use of private seller data such as sales history or purchase counts. Only public signals are used.
+- **Why:** This is a portfolio project for internship recruiting, so each phase has to produce a number someone can check (extraction accuracy, F1, p95 latency, cache hit rate). Payments added legal and product scope without engineering depth that could be measured. Private seller data isn't available to us and couldn't be collected without breaking platform terms. Extraction moves to Phase 1 because it is the entry point the rest of the pipeline depends on, and it can be evaluated offline against a labelled set.
+- **Consequences:** the existing `POST /api/check` fake report and its five signal names come from the old brief and will be replaced (plan agreed before any code changes). Ideas from the old brief that are still useful went into `docs/BACKLOG.md` instead of being dropped.
+
+## 2026-11-23: Survey real captions before building extraction
+
+- **Options:** (1) build the extraction pipeline first and collect eval captions afterwards; (2) collect about 30 real promo captions first and count what they actually contain (store URL, brand only, "link in bio", TikTok Shop, discount code only, nothing).
+- **Chose:** option 2, as step 0 of Phase 1. The same captions then become the labelled eval set, so the work isn't wasted.
+- **Why:** the whole pipeline assumes captions contain the store. Creators often put links in their bio because caption links usually aren't clickable, and TikTok Shop products have no store domain at all. If most captions lack a store, the design has to change, and that's cheaper to find out before writing code. It also gives a measured basis for the input design that can be explained in an interview.
+
+## 2026-11-23: `POST /scan` accepts an optional `store_url` from the user
+
+- **Options:** (1) caption only, always run LLM extraction; (2) add an optional `store_url` field on the same endpoint; (3) a separate endpoint for checking a store directly.
+- **Chose:** option 2. At least one of `caption` or `store_url` is required. A store URL supplied by the user takes priority over an extracted one (`store_url_source: "user_provided"`). If only `store_url` is sent, no LLM call is made.
+- **Why:** it covers the "link in bio" and no-URL cases: the user opens the bio link and pastes it. Scans also keep working when extraction fails (graceful degradation). Later, Phase 2 signals can be tested on known stores without depending on extraction quality. A single endpoint keeps one request/response shape for the web page and the extension. A separate endpoint (option 3) would duplicate the response contract for little benefit.
+- **Consequence:** a basic store-URL normalizer moves into Phase 1, because users will paste `glowlab.co` without `https://`. Full normalization (tracking parameters, registrable domain) stays in the Phase 2 backlog item.
