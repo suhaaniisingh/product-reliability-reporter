@@ -1,47 +1,51 @@
 import { useState, type FormEvent } from 'react'
-import { CheckError, checkStore } from './api'
-import type { Report, Signal, Status } from './types'
+import { ScanError, scan } from './api'
+import type { Confidence, Extraction, ScanRequest, ScanResponse, StoreUrlSource, VideoInfo } from './types'
 
-// Human-readable names for the signal keys the API returns.
-const SIGNAL_LABELS: Record<string, string> = {
-  business_age: 'Business age',
-  business_transparency: 'Business transparency',
-  shipping_policy: 'Shipping & refund policy',
-  independent_reviews: 'Independent reviews',
-  photo_origin: 'Product photo origin',
+// How each store source is shown. Text always accompanies colour (accessibility).
+const SOURCE_BADGES: Record<StoreUrlSource, { label: string; style: string }> = {
+  in_caption: { label: 'From the caption', style: 'bg-green-100 text-green-800' },
+  user_provided: { label: 'Your link', style: 'bg-blue-100 text-blue-800' },
+  guessed_from_brand: { label: 'Guessed from the brand', style: 'bg-amber-100 text-amber-800' },
+  none: { label: 'Not found', style: 'bg-slate-200 text-slate-700' },
 }
 
-// Fallback for signals added to the backend before the UI knows their label:
-// "some_new_signal" -> "Some new signal".
-function labelFor(key: string): string {
-  const words = key.replaceAll('_', ' ')
-  return SIGNAL_LABELS[key] ?? words.charAt(0).toUpperCase() + words.slice(1)
+const CONFIDENCE_LABELS: Record<Confidence, string> = {
+  high: 'High confidence',
+  medium: 'Medium confidence',
+  low: 'Low confidence',
 }
 
-// Tailwind classes per status. The status word is always shown as text too,
-// so the meaning never depends on colour alone (accessibility).
-const STATUS_STYLES: Record<Status, string> = {
-  good: 'bg-green-100 text-green-800',
-  warning: 'bg-amber-100 text-amber-800',
-  danger: 'bg-red-100 text-red-800',
-  unknown: 'bg-slate-200 text-slate-700',
-}
+const PLATFORM_LABELS = { tiktok: 'TikTok', instagram: 'Instagram', unknown: 'Unrecognized site' } as const
+
+const INPUT_STYLE =
+  'w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none'
 
 export default function App() {
-  const [url, setUrl] = useState('')
-  const [report, setReport] = useState<Report | null>(null)
+  const [caption, setCaption] = useState('')
+  const [storeUrl, setStoreUrl] = useState('')
+  const [videoUrl, setVideoUrl] = useState('')
+  const [result, setResult] = useState<ScanResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  const canSubmit = caption.trim() !== '' || storeUrl.trim() !== ''
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault() // stop the browser's default full-page form submit
+    // Only send fields the user filled in.
+    const request: ScanRequest = {}
+    if (caption.trim()) request.caption = caption.trim()
+    if (storeUrl.trim()) request.store_url = storeUrl.trim()
+    if (videoUrl.trim()) request.video_url = videoUrl.trim()
+
     setLoading(true)
     setError(null)
-    setReport(null)
+    setResult(null)
     try {
-      setReport(await checkStore(url.trim()))
+      setResult(await scan(request))
     } catch (err) {
-      setError(err instanceof CheckError ? err.message : 'Unexpected error. Please try again.')
+      setError(err instanceof ScanError ? err.message : 'Unexpected error. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -51,29 +55,62 @@ export default function App() {
     <main className="mx-auto max-w-xl px-4 py-10">
       <h1 className="text-2xl font-bold text-slate-900">Trust Checker</h1>
       <p className="mt-1 text-slate-600">
-        Paste a store link to see evidence about the seller before you buy.
+        Paste a product video's caption, the store link, or both, to see what's being sold and by which store.
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-2 sm:flex-row">
-        <label htmlFor="store-url" className="sr-only">
-          Store URL
-        </label>
-        <input
-          id="store-url"
-          type="text"
-          inputMode="url"
-          autoComplete="off"
-          placeholder="https://example-store.com"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-        />
+      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+        <div>
+          <label htmlFor="caption" className="block text-sm font-medium text-slate-800">
+            Video caption
+          </label>
+          <textarea
+            id="caption"
+            rows={4}
+            maxLength={5000}
+            placeholder="Obsessed w this serum 😍 code GLOW20 at glowlab.co"
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            className={`mt-1 ${INPUT_STYLE}`}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="store-url" className="block text-sm font-medium text-slate-800">
+            Store link <span className="font-normal text-slate-500">(if the caption says "link in bio", paste it here)</span>
+          </label>
+          <input
+            id="store-url"
+            type="text"
+            inputMode="url"
+            autoComplete="off"
+            placeholder="glowlab.co"
+            value={storeUrl}
+            onChange={(e) => setStoreUrl(e.target.value)}
+            className={`mt-1 ${INPUT_STYLE}`}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="video-url" className="block text-sm font-medium text-slate-800">
+            Video link <span className="font-normal text-slate-500">(optional)</span>
+          </label>
+          <input
+            id="video-url"
+            type="url"
+            autoComplete="off"
+            placeholder="https://www.tiktok.com/@creator/video/…"
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+            className={`mt-1 ${INPUT_STYLE}`}
+          />
+        </div>
+
         <button
           type="submit"
-          disabled={loading || url.trim() === ''}
+          disabled={loading || !canSubmit}
           className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? 'Checking…' : 'Check store'}
+          {loading ? 'Scanning…' : 'Scan'}
         </button>
       </form>
 
@@ -83,41 +120,58 @@ export default function App() {
         </p>
       )}
 
-      {report && <ReportView report={report} />}
+      {result && <ResultView extraction={result.extraction} video={result.video} />}
     </main>
   )
 }
 
-function ReportView({ report }: { report: Report }) {
+function ResultView({ extraction, video }: { extraction: Extraction; video: VideoInfo | null }) {
+  const badge = SOURCE_BADGES[extraction.store_url_source]
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold text-slate-900">Report</h2>
-      <p className="text-sm break-all text-slate-500">{report.store_url}</p>
+    <section className="mt-8 flex flex-col gap-3" aria-live="polite">
+      <h2 className="text-lg font-semibold text-slate-900">Result</h2>
 
-      {/* Honesty: the backend currently returns placeholder data for every URL. */}
-      <p className="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
-        Sample data: real checks aren't built yet, so every store gets this same report.
-      </p>
+      <div className="rounded-lg border border-slate-200 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-medium text-slate-900">Store</span>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.style}`}>{badge.label}</span>
+        </div>
+        {/* Plain text on purpose: we haven't checked this store yet, so we don't link to it. */}
+        <p className="mt-1 break-all text-slate-800">{extraction.store_url ?? 'No store found'}</p>
+        <p className="mt-1 text-sm text-slate-500">{CONFIDENCE_LABELS[extraction.confidence]}</p>
+      </div>
 
-      <ul className="mt-4 flex flex-col gap-3">
-        {Object.entries(report.signals).map(([key, signal]) => (
-          <SignalRow key={key} name={labelFor(key)} signal={signal} />
-        ))}
-      </ul>
+      {extraction.mentions_link_in_bio && extraction.store_url_source !== 'user_provided' && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          The caption says the link is in the creator's bio. Open their profile, copy the store link, and paste it
+          above to check the exact store.
+        </p>
+      )}
+
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-lg border border-slate-200 p-3 text-sm">
+        <Field label="Product" value={extraction.product} />
+        <Field label="Brand" value={extraction.brand} />
+        <Field label="Discount code" value={extraction.discount_code} />
+        {video && (
+          <Field
+            label="Video"
+            value={[PLATFORM_LABELS[video.platform], video.creator_handle && `@${video.creator_handle}`]
+              .filter(Boolean)
+              .join(' · ')}
+          />
+        )}
+      </dl>
+
+      {extraction.notes && <p className="text-sm text-slate-600">{extraction.notes}</p>}
     </section>
   )
 }
 
-function SignalRow({ name, signal }: { name: string; signal: Signal }) {
+function Field({ label, value }: { label: string; value: string | null }) {
   return (
-    <li className="rounded-lg border border-slate-200 p-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="font-medium text-slate-900">{name}</span>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${STATUS_STYLES[signal.status]}`}>
-          {signal.status}
-        </span>
-      </div>
-      <p className="mt-1 text-slate-700">{signal.detail}</p>
-    </li>
+    <>
+      <dt className="font-medium text-slate-700">{label}</dt>
+      <dd className="text-slate-900">{value || <span className="text-slate-400">—</span>}</dd>
+    </>
   )
 }
