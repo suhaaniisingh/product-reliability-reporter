@@ -12,6 +12,8 @@ Each item: what it is, the phase it fits, and where the idea came from.
 - **Resolve "link in bio".** When a caption says "link in bio", find the actual store URL. Neither TikTok nor Instagram oEmbed exposes bio links (checked 2026-11-23), so this needs a permitted source first, or the user pastes the link themselves. *Source: Phase 1 research.*
 - **Impersonation check.** Does the brand's official social account link to a different domain than the one in the video? This catches the "real product, fake store" case. Needs a permitted data source. *Source: old brief, "later" list.*
 
+- **Trustpilot as a review signal**, only if a free developer key turns out to exist (unconfirmed 2026-11-24: their docs describe keys via paid Trustpilot for Business or a partner agreement). *Source: Phase 2 review research.*
+
 ## Phase 3: Labelled dataset + evaluation
 
 - **Add real captions to the eval set**, to check how optimistic the synthetic numbers are. *Source: Phase 1 caveat.*

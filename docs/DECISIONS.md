@@ -201,3 +201,14 @@ One short entry per decision: the date, what we chose, why, and the alternatives
   4. The existing caption and output size caps.
 - **Rate limiter: written ourselves** rather than using `slowapi`. It's small and fully understood, which makes a good interview topic.
 - **Known limits:** counts live in one server's memory. That's fine on a single free instance; several instances would need a shared store such as Redis (Phase 5). The client IP must be read the way the chosen host documents (proxy headers).
+
+## 2026-11-24: No review source; add site popularity (Tranco top 50,000) as a fifth signal
+
+- **Researched:**
+  - **Trustpilot:** keys appear to require Trustpilot for Business (paid yearly call allowances) or a partner agreement; no free developer key could be confirmed.
+  - **Reddit:** new API access needs approval, and third-party reports say new requests closed 2026-10-31. Reddit's own pages couldn't be read from this environment.
+  - **ScamAdviser / APIVoid:** paid or about 20–29 free checks, and it would copy someone else's trust score into ours.
+  - **Google reviews:** not researched; online stores often have no listing.
+- **Chose (Suhaani):** leave reviews out (Trustpilot stays in the backlog in case a free key exists). Add **Tranco**, a research ranking of popular sites updated daily, as a fifth signal. Keep the **top 50,000** domains, downloaded once a day and looked up locally (no key, no rate limit, small enough for a free host's memory).
+- **Scoring:** being on the list adds points with the rank as the reason. Not being on it scores 0, never a penalty, because most honest small shops aren't on it either.
+- **Caveat:** one of Tranco's input rankings (Cloudflare Radar) is licensed CC BY-NC (non-commercial). Fine for a portfolio project; revisit if the project is ever commercial.
