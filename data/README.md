@@ -2,7 +2,7 @@
 
 ## `extraction_eval.csv`: Phase 1 extraction eval set
 
-About 30 synthetic captions written to cover every case type, with the answer extraction *should* give for each. They were drafted by Claude and reviewed by Suhaani (see `docs/DECISIONS.md`, 2026-11-23). The eval script scores the extractor against these rows.
+About 30 synthetic captions written to cover every case type, with the answer extraction *should* give for each. They were drafted by Claude, to be reviewed by Suhaani (see `docs/DECISIONS.md`, 2026-11-23). The eval script scores the extractor against these rows.
 
 **Caveat:** synthetic captions may be cleaner than real ones, so the accuracy measured here may be optimistic.
 
@@ -23,6 +23,8 @@ About 30 synthetic captions written to cover every case type, with the answer ex
 | `expected_discount_code` | The code, or blank |
 | `notes` | Why this row is interesting |
 
+In the `expected_*` text columns: blank means the field must be null, `a|b` accepts any listed alternative, and `*` means "anything is fine, don't score this field for this row". The exact matching rules are at the top of `backend/scripts/eval_extraction.py`.
+
 ### Case types
 
 | `case_type` | What the caption looks like |
@@ -33,6 +35,15 @@ About 30 synthetic captions written to cover every case type, with the answer ex
 | `code_only` | A discount code, with no brand or URL |
 | `no_store` | No store mentioned |
 | `tricky` | Linktree/link-aggregator URLs, an unrelated URL (charity, music), several products, a misspelled brand |
+
+### Running the eval
+
+```bash
+cd backend
+uv run python -m scripts.eval_extraction --dry-run --split all   # check the CSV, no API calls
+uv run python -m scripts.eval_extraction                         # dev split, live (needs ANTHROPIC_API_KEY)
+uv run python -m scripts.eval_extraction --split test            # held-out split: the reported number
+```
 
 ### CSV tips
 
