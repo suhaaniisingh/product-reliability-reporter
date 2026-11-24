@@ -11,6 +11,7 @@ from functools import lru_cache
 from app.extraction.base import Extractor
 from app.extraction.claude import ClaudeExtractor
 from app.extraction.domain_check import DnsResolver, DomainResolver
+from app.ratelimit import RateLimiter
 from app.signals.base import Signal
 from app.signals.domain_age import DomainAgeSignal
 from app.signals.fetcher import SafeFetcher
@@ -44,3 +45,9 @@ async def get_signals() -> AsyncIterator[list[Signal]]:
         ]
     finally:
         await fetcher.aclose()
+
+
+@lru_cache
+def get_rate_limiter() -> RateLimiter:
+    # One limiter for the whole process, so counts are shared by all requests.
+    return RateLimiter()

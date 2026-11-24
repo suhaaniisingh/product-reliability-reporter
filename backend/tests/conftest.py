@@ -10,9 +10,10 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
-from app.dependencies import get_domain_resolver, get_extractor, get_signals
+from app.dependencies import get_domain_resolver, get_extractor, get_rate_limiter, get_signals
 from app.extraction.fake import FakeExtractor, FakeResolver
 from app.main import app
+from app.ratelimit import RateLimiter
 
 
 @pytest.fixture
@@ -38,9 +39,16 @@ def fake_signals() -> list:
 
 
 @pytest.fixture
-def client(fake_extractor: FakeExtractor, fake_resolver: FakeResolver, fake_signals: list) -> Iterator[TestClient]:
+def rate_limiter() -> RateLimiter:
+    """A fresh limiter per test, so scans in one test never count against another."""
+    return RateLimiter()
+
+
+@pytest.fixture
+def client(fake_extractor: FakeExtractor, fake_resolver: FakeResolver, fake_signals: list, rate_limiter: RateLimiter) -> Iterator[TestClient]:
     app.dependency_overrides[get_extractor] = lambda: fake_extractor
     app.dependency_overrides[get_domain_resolver] = lambda: fake_resolver
     app.dependency_overrides[get_signals] = lambda: fake_signals
+    app.dependency_overrides[get_rate_limiter] = lambda: rate_limiter
     yield TestClient(app)
     app.dependency_overrides.clear()

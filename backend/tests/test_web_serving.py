@@ -8,13 +8,16 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.dependencies import get_signals
+from app.dependencies import get_rate_limiter, get_signals
 from app.main import create_app
+from app.ratelimit import RateLimiter
 
 
 def offline_app(**kwargs):  # never run real trust signals (network) in tests
     app = create_app(**kwargs)
     app.dependency_overrides[get_signals] = lambda: []
+    limiter = RateLimiter()
+    app.dependency_overrides[get_rate_limiter] = lambda: limiter
     return app
 
 
