@@ -309,3 +309,8 @@ Suhaani approved all of these at once, before the build started.
 - **Result:** start-to-ready 26 s → ~5 s; page 0.8 s; a caption scan made ~10 s after opening the page 3.0 s.
 - **Lesson:** a background warm-up thread took 30 s, because with request-based billing Cloud Run gives an instance CPU only while it handles a request. So the warm-up runs *inside* a request instead.
 - **Still open:** a visitor arriving after ~15 idle minutes waits ~5 s for the instance to start. Options (keep-warm ping, or `min-instances 1`) were put to Suhaani.
+
+## 2026-11-24: Accept the ~5 s cold start for now
+
+- **Options:** (a) accept ~5 s for the first visitor after ~15 idle minutes, at no cost; (b) a Cloud Scheduler keep-warm ping to `/api/warmup` every 10 minutes (probably ~free, one more moving part); (c) `min-instances 1` (no cold starts, but an always-on instance costs money every month).
+- **Chose:** (a) (Suhaani). The app currently has one user, so the extra complexity and cost aren't justified. (b) is in the backlog for when there are real users. Keeping `min-instances 0` is a deliberate cost-versus-latency trade-off.

@@ -39,6 +39,7 @@ Each item: what it is, the phase it fits, and where the idea came from.
 ## Engineering (any phase, when it pays off)
 
 - **A dedicated Cloud Run runtime service account** with only secret-read access. The default compute account currently also holds the Cloud Run Builder role (needed for source deploys), so the running app has more permissions than it needs. *Source: Phase 2 deploy.*
+- **Keep the instance warm** once there are real users: a Cloud Scheduler job calling `/api/warmup` every ~10 minutes removes the ~5 s cold start (confirm Scheduler's free allowance first); `min-instances 1` if a guarantee is worth paying for. *Source: decision of 2026-11-24.*
 - **Automatic deploys** (GitHub Actions or a Cloud Build trigger on push to `main`) once the manual deploy feels stable. *Source: Phase 2 decisions.*
 
 - **CI:** a GitHub Actions workflow that runs `pytest` and the web build on every push to `main`.
