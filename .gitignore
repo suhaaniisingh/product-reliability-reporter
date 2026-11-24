@@ -11,6 +11,8 @@ CLAUDE.local.md
 __pycache__/
 *.py[cod]
 .pytest_cache/
+# Eval answer cache (re-running unchanged eval rows is free; see backend/scripts/eval_extraction.py)
+.cache/
 .ruff_cache/
 .mypy_cache/
 .coverage

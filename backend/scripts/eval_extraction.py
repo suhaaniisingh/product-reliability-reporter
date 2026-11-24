@@ -1,13 +1,24 @@
 """Measure extraction quality on data/extraction_eval.csv.
 
-    uv run python -m scripts.eval_extraction                 # dev split (for tuning the prompt)
-    uv run python -m scripts.eval_extraction --split test2   # held-out split: the number we report
-    uv run python -m scripts.eval_extraction --runs 3        # repeat to see run-to-run variation
-    uv run python -m scripts.eval_extraction --dry-run       # check the CSV and scoring, no API calls
+    uv run python -m scripts.eval_extraction --dry-run --split all   # check the CSV and scoring, no API calls
+    uv run python -m scripts.eval_extraction                         # dev split (for tuning the prompt)
+    uv run python -m scripts.eval_extraction --split test2           # held-out split: the number we report
+    uv run python -m scripts.eval_extraction --model claude-haiku-5-5
+    uv run python -m scripts.eval_extraction --live --runs 3         # real-time calls (measures latency), repeated
 
 Runs the same pipeline as the API (Claude extractor, then the deterministic rules
-with real DNS checks), so the score covers both. Live runs need ANTHROPIC_API_KEY
-in backend/.env and cost roughly $0.003 per row.
+with real DNS checks), so the score covers both. Live calls need ANTHROPIC_API_KEY
+in backend/.env.
+
+Keeping eval costs down (2026-11-24):
+- Answers are cached in backend/.cache/eval_responses.json, keyed by the exact
+  request (model, prompt, schema, effort, caption). Re-running unchanged rows is
+  free; any prompt change automatically misses the cache. --no-cache forces calls.
+- By default new calls go through the Message Batches API at half price (results
+  usually arrive within minutes). --live calls in real time instead, which is
+  needed to measure latency.
+- Before any paid call, the script prints how many calls it will make and the
+  estimated cost, and asks for confirmation (--yes skips the question).
 
 Matching rules for the expected_* columns:
 - blank = the field must be null / none
@@ -21,17 +32,22 @@ Matching rules for the expected_* columns:
 import argparse
 import asyncio
 import csv
+import hashlib
+import json
 import re
 import statistics
 import sys
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import anthropic
 from dotenv import load_dotenv
+from pydantic import ValidationError
 
 from app.extraction.base import ExtractionError, ExtractorNotConfigured, LLMExtraction
-from app.extraction.claude import MODEL, ClaudeExtractor
+from app.extraction.claude import MODEL, ClaudeExtractor, build_batch_params
 from app.extraction.domain_check import DnsResolver
 from app.extraction.postprocess import apply_rules
 from app.extraction.store_url import store_domain
@@ -39,11 +55,17 @@ from app.schemas import Extraction
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CSV = REPO_ROOT / "data" / "extraction_eval.csv"
+CACHE_FILE = REPO_ROOT / "backend" / ".cache" / "eval_responses.json"
 
-# USD per million tokens for claude-sonnet-5-5 (Anthropic price list, 2026-11).
-# Output tokens include the model's thinking tokens.
-PRICE_IN_PER_MTOK = 2.00
-PRICE_OUT_PER_MTOK = 10.00
+# USD per million tokens (Anthropic price list, 2026-11). Output includes thinking tokens.
+PRICES = {
+    "claude-sonnet-5-5": {"in": 2.00, "out": 10.00, "cache_read": 0.10},
+    "claude-haiku-5-5": {"in": 0.10, "out": 0.50, "cache_read": 0.01},
+}
+CACHE_WRITE_MULTIPLIER = 1.25  # 5-minute cache writes cost 1.25x the input price
+BATCH_DISCOUNT = 0.5
+# Rough per-call size for the up-front estimate (measured 2026-11-24 with the trimmed prompt).
+EST_INPUT_TOKENS, EST_OUTPUT_TOKENS = 1300, 150
 
 CASE_TYPES = {"explicit_url", "brand_only", "link_in_bio", "code_only", "no_store", "tricky"}
 SOURCES = {"in_caption", "guessed_from_brand", "none"}
@@ -75,9 +97,10 @@ class RowResult:
     extraction: Extraction | None
     error: str | None
     correct: dict[str, bool | None] = field(default_factory=dict)  # None = not scored
-    seconds: float = 0.0
-    input_tokens: int = 0
-    output_tokens: int = 0
+    seconds: float | None = None  # only measured for --live calls
+    cost: float = 0.0  # what this answer cost when it was made
+    from_cache: bool = False  # True = reused from the eval cache, nothing spent this run
+    usage: dict = field(default_factory=dict)
 
 
 def load_rows(path: Path) -> list[EvalRow]:
@@ -166,25 +189,159 @@ class _AlwaysExists:
         return True
 
 
-async def run(rows: list[EvalRow], dry_run: bool) -> list[RowResult]:
-    results: list[RowResult] = []
-    usage: dict = {}
+def call_cost(model: str, usage: dict, batch: bool) -> float:
+    p = PRICES[model]
+    dollars = (
+        usage.get("input", 0) * p["in"]
+        + usage.get("cache_write", 0) * p["in"] * CACHE_WRITE_MULTIPLIER
+        + usage.get("cache_read", 0) * p["cache_read"]
+        + usage.get("output", 0) * p["out"]
+    ) / 1e6
+    return dollars * (BATCH_DISCOUNT if batch else 1.0)
+
+
+def _usage_dict(usage: object) -> dict:
+    return {
+        "input": getattr(usage, "input_tokens", 0) or 0,
+        "cache_write": getattr(usage, "cache_creation_input_tokens", 0) or 0,
+        "cache_read": getattr(usage, "cache_read_input_tokens", 0) or 0,
+        "output": getattr(usage, "output_tokens", 0) or 0,
+    }
+
+
+def request_key(caption: str, model: str) -> str:
+    """Identifies the exact request: any change to the prompt, schema, effort,
+    model or caption gives a new key, so stale answers are never reused."""
+    body = json.dumps(build_batch_params(caption, model), sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(body.encode()).hexdigest()
+
+
+def load_cache() -> dict:
+    try:
+        return json.loads(CACHE_FILE.read_text())
+    except FileNotFoundError:
+        return {}
+
+
+def save_cache(cache: dict) -> None:
+    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    CACHE_FILE.write_text(json.dumps(cache, indent=1, ensure_ascii=False))
+
+
+def confirm_spend(n_calls: int, model: str, batch: bool, assume_yes: bool) -> bool:
+    estimate = n_calls * call_cost(model, {"input": EST_INPUT_TOKENS, "output": EST_OUTPUT_TOKENS}, batch)
+    mode = "batch (half price)" if batch else "live"
+    print(f"About to make {n_calls} {mode} call(s) to {model}; estimated cost up to ${estimate:.3f}.", file=sys.stderr)
+    if assume_yes:
+        return True
+    if not sys.stdin.isatty():
+        print("Not confirmed (no terminal). Re-run with --yes to proceed.", file=sys.stderr)
+        return False
+    return input("Proceed? [y/N] ").strip().lower() in {"y", "yes"}
+
+
+async def call_live(rows: list[EvalRow], model: str) -> dict[str, dict]:
+    """One real-time call per row (sequential, so latency is measured cleanly)."""
+    out: dict[str, dict] = {}
+    seen: dict = {}
 
     def record(message, seconds: float) -> None:  # called by ClaudeExtractor after each reply
-        usage.update(seconds=seconds, input=message.usage.input_tokens, output=message.usage.output_tokens)
+        seen.update(usage=_usage_dict(message.usage), seconds=seconds)
 
-    extractor = ClaudeExtractor(on_response=record)
-    resolver = _AlwaysExists() if dry_run else DnsResolver()
+    extractor = ClaudeExtractor(model=model, on_response=record)
     for i, row in enumerate(rows, 1):
-        usage.clear()
-        print(f"  [{i}/{len(rows)}] {row.id} {row.case_type}", file=sys.stderr)
+        print(f"  [{i}/{len(rows)}] {row.id}", file=sys.stderr)
+        seen.clear()
         try:
-            llm = _expected_as_llm(row) if dry_run else await extractor.extract(row.caption)
+            llm = await extractor.extract(row.caption)
+            out[row.id] = {"llm": llm.model_dump(), "usage": seen["usage"], "seconds": seen["seconds"], "batch": False}
+        except ExtractionError as error:
+            out[row.id] = {"error": str(error), "usage": seen.get("usage", {}), "batch": False}
+    return out
+
+
+def call_batch(rows: list[EvalRow], model: str) -> dict[str, dict]:
+    """All rows in one Message Batches request: half price, answers in minutes."""
+    client = anthropic.Anthropic()
+    batch = client.messages.batches.create(
+        requests=[{"custom_id": row.id, "params": build_batch_params(row.caption, model)} for row in rows]
+    )
+    print(f"  batch {batch.id} submitted ({len(rows)} requests)", file=sys.stderr)
+    started = time.monotonic()
+    while batch.processing_status != "ended":
+        time.sleep(5)
+        batch = client.messages.batches.retrieve(batch.id)
+        counts = batch.request_counts
+        print(f"  {time.monotonic() - started:4.0f}s: {counts.succeeded} done, {counts.processing} processing", file=sys.stderr)
+
+    out: dict[str, dict] = {}
+    for item in client.messages.batches.results(batch.id):
+        result = item.result
+        if result.type != "succeeded":
+            out[item.custom_id] = {"error": f"batch request {result.type}", "usage": {}, "batch": True}
+            continue
+        message = result.message
+        usage = _usage_dict(message.usage)
+        # Same checks as ClaudeExtractor: why did the model stop, and does the answer fit the schema?
+        if message.stop_reason in {"refusal", "max_tokens"}:
+            out[item.custom_id] = {"error": f"stop_reason={message.stop_reason}", "usage": usage, "batch": True}
+            continue
+        text = next((b.text for b in message.content if b.type == "text"), "")
+        try:
+            llm = LLMExtraction.model_validate_json(text)
+        except ValidationError:
+            out[item.custom_id] = {"error": "output didn't fit the schema", "usage": usage, "batch": True}
+            continue
+        out[item.custom_id] = {"llm": llm.model_dump(), "usage": usage, "seconds": None, "batch": True}
+    return out
+
+
+async def run(
+    rows: list[EvalRow], *, model: str, dry_run: bool, use_cache: bool, batch: bool, assume_yes: bool
+) -> list[RowResult] | None:
+    """Returns None if the user declined the spend."""
+    resolver = _AlwaysExists() if dry_run else DnsResolver()
+    answers: dict[str, dict] = {}
+    from_cache: set[str] = set()
+
+    if dry_run:
+        answers = {r.id: {"llm": _expected_as_llm(r).model_dump(), "usage": {}} for r in rows}
+    else:
+        cache = load_cache()
+        keys = {r.id: request_key(r.caption, model) for r in rows}
+        if use_cache:
+            for r in rows:
+                if keys[r.id] in cache:
+                    answers[r.id] = cache[keys[r.id]]
+                    from_cache.add(r.id)
+        todo = [r for r in rows if r.id not in answers]
+        if todo:
+            if not confirm_spend(len(todo), model, batch, assume_yes):
+                return None
+            new = call_batch(todo, model) if batch else await call_live(todo, model)
+            answers.update(new)
+            for r in todo:
+                if "llm" in new[r.id]:  # never cache failures
+                    cache[keys[r.id]] = new[r.id]
+            save_cache(cache)
+        print(f"  {len(from_cache)} answer(s) reused from the eval cache, {len(todo)} new call(s)", file=sys.stderr)
+
+    results = []
+    for row in rows:
+        answer = answers[row.id]
+        if "llm" in answer:
+            llm = LLMExtraction.model_validate(answer["llm"])
             extraction, error = await apply_rules(llm, row.caption, resolver), None
-        except ExtractionError as exc:
-            extraction, error = None, str(exc)
-        result = RowResult(row, extraction, error, seconds=usage.get("seconds", 0.0),
-                           input_tokens=usage.get("input", 0), output_tokens=usage.get("output", 0))
+        else:
+            extraction, error = None, answer["error"]
+        usage = answer.get("usage", {})
+        result = RowResult(
+            row, extraction, error,
+            seconds=answer.get("seconds"),
+            cost=0.0 if dry_run else call_cost(model, usage, answer.get("batch", False)),
+            from_cache=row.id in from_cache,
+            usage=usage,
+        )
         result.correct = score(row, extraction)
         results.append(result)
     return results
@@ -194,10 +351,10 @@ def _pct(values: list[bool]) -> str:
     return f"{100 * sum(values) / len(values):.0f}% ({sum(values)}/{len(values)})" if values else "n/a"
 
 
-def report(results: list[RowResult], split: str, dry_run: bool) -> str:
+def report(results: list[RowResult], split: str, dry_run: bool, model: str) -> str:
     """Markdown tables, ready to paste into docs/EVALUATION.md."""
     scored = lambda f, rs: [r.correct[f] for r in rs if r.correct[f] is not None]  # noqa: E731
-    lines = [f"### Extraction eval: split={split}, rows={len(results)}, model={'(dry run)' if dry_run else MODEL}", ""]
+    lines = [f"### Extraction eval: split={split}, rows={len(results)}, model={'(dry run)' if dry_run else model}", ""]
 
     lines += ["| Field | Accuracy |", "|---|---|"]
     lines += [f"| {f} | {_pct(scored(f, results))} |" for f in FIELDS]
@@ -232,12 +389,17 @@ def report(results: list[RowResult], split: str, dry_run: bool) -> str:
 
     if not dry_run:
         times = [r.seconds for r in results if r.seconds]
-        cost = sum(r.input_tokens * PRICE_IN_PER_MTOK + r.output_tokens * PRICE_OUT_PER_MTOK for r in results) / 1e6
+        total = sum(r.cost for r in results)
+        spent = sum(r.cost for r in results if not r.from_cache)
+        tokens = {k: sum(r.usage.get(k, 0) for r in results) for k in ("input", "cache_write", "cache_read", "output")}
         lines += [
             "| Cost and latency | Value |", "|---|---|",
-            f"| Mean / max latency per caption | {statistics.mean(times):.2f}s / {max(times):.2f}s |" if times else "| Latency | n/a |",
-            f"| Tokens in / out (total) | {sum(r.input_tokens for r in results):,} / {sum(r.output_tokens for r in results):,} |",
-            f"| Estimated cost | ${cost:.4f} total, ${cost / len(results):.4f} per caption |", "",
+            f"| Cost per caption (as measured when each answer was made) | ${total / len(results):.4f} |",
+            f"| Spent in this run (answers reused from the eval cache cost nothing) | ${spent:.4f} |",
+            f"| Tokens: full-price in / cache write / cache read / out | {tokens['input']:,} / {tokens['cache_write']:,} / {tokens['cache_read']:,} / {tokens['output']:,} |",
+            f"| Mean / max latency per caption | {statistics.mean(times):.2f}s / {max(times):.2f}s |" if times
+            else "| Latency | not measured (batch or cached answers; use --live --no-cache) |",
+            "",
         ]
 
     misses = [r for r in results if any(v is False for v in r.correct.values())]
@@ -282,27 +444,42 @@ def consistency_report(runs: list[list[RowResult]]) -> str:
             stores = sorted({str(x.extraction.store_url) if x.extraction else "error" for x in row_results})
             lines.append(f"- `{r.row.id}` ({r.row.case_type}) {' '.join(marks)}  brand={brands} store={stores}")
     lines += ["", f"Rows that flipped between right and wrong: {unstable}"]
-    cost = sum(r.input_tokens * PRICE_IN_PER_MTOK + r.output_tokens * PRICE_OUT_PER_MTOK for rs in runs for r in rs) / 1e6
-    lines.append(f"Total estimated cost: ${cost:.4f}")
+    spent = sum(r.cost for rs in runs for r in rs if not r.from_cache)
+    lines.append(f"Spent across these runs: ${spent:.4f}")
     return "\n".join(lines)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--split", choices=[*sorted(SPLITS), "all"], default="dev")
-    parser.add_argument("--runs", type=int, default=1, help="repeat the eval N times and report the spread")
+    parser.add_argument("--model", choices=sorted(PRICES), default=MODEL)
+    parser.add_argument("--runs", type=int, default=1, help="repeat N times and report the spread (implies --no-cache)")
+    parser.add_argument("--live", action="store_true", help="real-time calls (measures latency) instead of the half-price batch API")
+    parser.add_argument("--no-cache", action="store_true", help="don't reuse earlier answers from the eval cache")
+    parser.add_argument("--yes", action="store_true", help="don't ask before spending")
     parser.add_argument("--dry-run", action="store_true", help="score the expected answers against themselves (no API calls)")
     parser.add_argument("--csv", type=Path, default=DEFAULT_CSV)
     args = parser.parse_args()
 
     load_dotenv(REPO_ROOT / "backend" / ".env", override=False)
     rows = [r for r in load_rows(args.csv) if args.split == "all" or r.split == args.split]
+    runs: list[list[RowResult]] = []
     try:
-        runs = [asyncio.run(run(rows, args.dry_run)) for _ in range(max(1, args.runs))]
+        for _ in range(max(1, args.runs)):
+            results = asyncio.run(run(
+                rows, model=args.model, dry_run=args.dry_run,
+                use_cache=not (args.no_cache or args.runs > 1), batch=not args.live, assume_yes=args.yes,
+            ))
+            if results is None:
+                return 1
+            runs.append(results)
     except ExtractorNotConfigured as error:
         print(f"{error} (or use --dry-run)", file=sys.stderr)
         return 1
-    print(report(runs[-1], args.split, args.dry_run))
+    except anthropic.AuthenticationError:
+        print("ANTHROPIC_API_KEY is missing or invalid (or use --dry-run)", file=sys.stderr)
+        return 1
+    print(report(runs[-1], args.split, args.dry_run, args.model))
     if len(runs) > 1:
         print("\n" + consistency_report(runs))
     return 0

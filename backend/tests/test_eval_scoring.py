@@ -44,3 +44,27 @@ def test_match_text(expected: str, predicted: str | None, contains: bool, result
 )
 def test_match_store(expected: str, predicted: str | None, result: bool) -> None:
     assert match_store(expected, predicted) is result
+
+
+def test_call_cost_uses_cache_and_batch_pricing() -> None:
+    from scripts.eval_extraction import call_cost
+
+    usage = {"input": 1_000_000, "cache_write": 0, "cache_read": 0, "output": 0}
+    assert call_cost("claude-sonnet-5-5", usage, batch=False) == pytest.approx(2.00)
+    assert call_cost("claude-sonnet-5-5", usage, batch=True) == pytest.approx(1.00)  # batch = half price
+    cached = {"input": 0, "cache_write": 0, "cache_read": 1_000_000, "output": 0}
+    assert call_cost("claude-sonnet-5-5", cached, batch=False) == pytest.approx(0.10)  # cache reads: 5%
+    written = {"input": 0, "cache_write": 1_000_000, "cache_read": 0, "output": 0}
+    assert call_cost("claude-sonnet-5-5", written, batch=False) == pytest.approx(2.50)  # cache writes: 1.25x
+
+
+def test_request_key_changes_with_prompt_model_or_caption(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.extraction.claude as claude
+    from scripts.eval_extraction import request_key
+
+    key = request_key("caption", "claude-sonnet-5-5")
+    assert request_key("caption", "claude-sonnet-5-5") == key  # stable
+    assert request_key("other caption", "claude-sonnet-5-5") != key
+    assert request_key("caption", "claude-haiku-5-5") != key
+    monkeypatch.setattr(claude, "SYSTEM_PROMPT", "a different prompt")
+    assert request_key("caption", "claude-sonnet-5-5") != key  # a prompt change invalidates cached answers
