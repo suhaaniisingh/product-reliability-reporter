@@ -151,3 +151,14 @@ Live scans on the deployed service and locally, using the approved weights (stor
 **Latency (single live scans, not yet a benchmark):** store-link scan 5.2 s (nike.com; store pages 3.1 s), caption scan 4.0 s, page load with the server waking up 1.7 s. A proper p95 baseline is the first step of Phase 5.
 
 **Rate limiter, live:** 40 concurrent scans, each with a different fake `X-Forwarded-For`, gave 31 × 200 and 9 × 429. Spoofed headers don't get around the per-visitor limit.
+
+**Update (same day, after Suhaani's hands-on test):** popularity list raised to the top 100,000 (+5 for ranks 50k–100k), and contact details now have to *work* (the email domain receives mail, or the phone number is valid), with the page each was found on. Live scores, revision 5:
+
+| Store | Score | Contact detail found |
+|---|---|---|
+| glossier.com | 85 | gteam@glossier.com on /pages/contact-us (the store's own domain) |
+| kotn.com | 75 | hello@kotn.com on /pages/help (the store's own domain) |
+| tentree.com | 75 | support@tentree.com on / (the store's own domain) |
+| nike.com | 75 | none (rendered by JavaScript) |
+| cerave.com | 50 (was 45) | none; +5 now for Tranco rank 88,330 |
+| Safe Browsing phishing test page | 10 | not checked (robots.txt) |
