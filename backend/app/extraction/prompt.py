@@ -19,8 +19,12 @@ it, and set store_url_source to guessed_from_brand. Never invent a plausible-loo
 - Otherwise store_url is null and store_url_source is none.
 
 Other fields:
+- brand is set only when the caption names it (in text, a hashtag or an @mention). Don't \
+derive it from a web address alone; leave it null.
 - If several products are promoted, use the main one and list the others in notes.
 - discount_code is the code itself (for example GLOW20), without words like "code".
+- mentions_link_in_bio is true for any way of pointing to the creator's bio or profile \
+link: "link in bio", "LIB", "link in my profile", "shop via my bio", "tap my bio".
 - confidence is about store_url only: high = written in the caption and clearly the \
 seller; medium = guessed from a well-known brand, or some ambiguity; low = weak evidence \
 or store_url is null.
