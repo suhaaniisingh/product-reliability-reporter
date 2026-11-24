@@ -140,3 +140,21 @@ One short entry per decision: the date, what we chose, why, and the alternatives
 - **Options:** synthetic captions drafted by Claude and reviewed; synthetic plus a few real ones; all written by Suhaani.
 - **Chose:** drafted by Claude, with the expected answers reviewed by Suhaani. About 20 rows are used for tuning the prompt and about 10 are held out for the reported number.
 - **Why:** fast, and it covers every case type on purpose. Caveat recorded in `docs/EVALUATION.md`: synthetic captions may be cleaner than real ones, so accuracy may be optimistic. Tuning the prompt on the same rows that are reported would inflate the score further, hence the held-out split.
+
+## 2026-11-23: Remove the server-side refusal fallback; use the stable API only
+
+- **Changes:** the "Extraction LLM" entry (same day), which turned on `fallbacks="default"`.
+- **Options:** keep the fallback (beta `client.beta.messages.parse` + `fallbacks`), or remove it and call the stable `client.messages.parse`.
+- **Chose:** remove it (Suhaani, on Claude's recommendation).
+- **Why:**
+  - For Sonnet 5.5 the fallback only retries two refusal categories (cybersecurity, help building competing AI models), and product captions don't trigger either. The first 20 live calls had zero refusals.
+  - Our own code already handles every refusal: it checks `stop_reason` and returns a clear 502.
+  - Dropping it removes a dependency on a beta API, which can change without notice.
+- **Lesson worth keeping:** LLM APIs can answer "200 OK" without a usable result (a refusal, a reply cut off at `max_tokens`, or output that doesn't fit the schema). So the extractor checks why the model stopped before trusting the content.
+
+## 2026-11-23: Change an API and its callers together ("expand, then contract")
+
+- **Context:** replacing `/api/check` with `/api/scan` left the web page calling the removed endpoint for five commits (`3b00da7` to `bc777e2`). Tests passed throughout, but the page didn't work in those commits.
+- **Options:** rewrite history to merge those commits (they aren't pushed), or leave history as is and adopt a rule.
+- **Chose:** leave history, adopt the rule. When an API changes shape, either update its callers in the same commit, or first add the new endpoint alongside the old one ("expand"), move the callers over, and only then remove the old one ("contract").
+- **Why:** rewriting history would lose the small step-by-step commits. Expand-then-contract is how production teams change APIs without downtime. It will matter more from Phase 4, when a released extension can't be updated at the same moment as the server.

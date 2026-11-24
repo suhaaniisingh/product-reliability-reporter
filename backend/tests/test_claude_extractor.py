@@ -51,7 +51,7 @@ async def test_valid_reply_is_parsed_and_request_uses_approved_settings() -> Non
     assert body["model"] == MODEL == "claude-sonnet-5-5"
     assert body["output_config"]["effort"] == "low"
     assert body["output_config"]["format"]["type"] == "json_schema"
-    assert body["fallbacks"] == "default"
+    assert "fallbacks" not in body  # stable API only (fallback removed 2026-11-23)
     # The caption is wrapped in delimiters, marking it as untrusted data.
     assert body["messages"][0]["content"].startswith("<caption>\n")
 

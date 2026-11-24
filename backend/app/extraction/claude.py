@@ -1,12 +1,12 @@
 """The real extractor: Claude Sonnet 5.5 with structured outputs.
 
 Why these settings (see docs/DECISIONS.md, 2026-11-23):
-- `beta.messages.parse(output_format=LLMExtraction)`: the API constrains the reply to
+- `messages.parse(output_format=LLMExtraction)`: the API constrains the reply to
   our JSON schema, and the SDK validates it into the Pydantic model. Much sturdier
   than asking for JSON in the prompt and hoping.
 - effort "low": extraction is a simple task; less thinking = lower cost and latency.
-- `fallbacks="default"`: if the model declines for certain policy reasons, the API
-  retries on another model within the same call. It should almost never trigger here.
+- Stable (non-beta) API only. A refusal comes back as HTTP 200 with
+  stop_reason "refusal", so we check stop_reason before trusting the content.
 """
 
 import logging
@@ -23,7 +23,6 @@ from app.extraction.prompt import SYSTEM_PROMPT, build_user_message
 logger = logging.getLogger(__name__)
 
 MODEL = "claude-sonnet-5-5"
-FALLBACK_BETA = "server-side-fallback-2026-07-01"
 # Room for low-effort thinking plus a small JSON reply. Hitting it means something odd happened.
 MAX_TOKENS = 4096
 TIMEOUT_SECONDS = 30.0
@@ -35,7 +34,7 @@ class ClaudeExtractor:
         self,
         client: anthropic.AsyncAnthropic | None = None,
         model: str = MODEL,
-        on_response: Callable[[anthropic.types.beta.BetaMessage, float], None] | None = None,
+        on_response: Callable[[anthropic.types.Message, float], None] | None = None,
     ) -> None:
         """`client` is injectable so tests can pass one with a mocked HTTP transport.
         `on_response(message, seconds)` lets the eval script collect token usage and latency."""
@@ -55,15 +54,13 @@ class ClaudeExtractor:
         client = self._get_client()
         started = time.perf_counter()
         try:
-            response = await client.beta.messages.parse(
+            response = await client.messages.parse(
                 model=self._model,
                 max_tokens=MAX_TOKENS,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": build_user_message(caption)}],
                 output_format=LLMExtraction,
                 output_config={"effort": "low"},
-                betas=[FALLBACK_BETA],
-                fallbacks="default",
             )
         except anthropic.APITimeoutError as error:
             raise ExtractionError("The extraction service timed out.") from error

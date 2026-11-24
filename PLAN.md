@@ -41,7 +41,7 @@ Research on 2026-11-23 showed that TikTok's and Instagram's oEmbed endpoints **n
 - **LLM:** Claude Sonnet 5.5 (`claude-sonnet-5-5`, $2 / $10 per million input/output tokens), behind an `Extractor` interface so it can be swapped.
   - Uses structured outputs: `client.messages.parse()` with the Pydantic model.
   - Uses low effort, since extraction is a simple task (fewer reasoning tokens, lower cost and latency).
-  - Server-side refusal fallback (`fallbacks: "default"`) is on by default, and `stop_reason` is checked.
+  - ~~Server-side refusal fallback~~ removed 2026-11-23 (see DECISIONS): stable API only; `stop_reason` is checked on every reply.
   - API key goes in `.env`, with `.env.example` committed.
 - **Input:** `POST /api/scan` takes `{caption?, video_url?, store_url?}`. At least one of `caption` / `store_url` is required. A store link from the user overrides the extracted one. `video_url` is parsed locally (platform, video ID, TikTok handle) with no network call.
 - **Brand → store guessing: yes, marked as guessed.**
