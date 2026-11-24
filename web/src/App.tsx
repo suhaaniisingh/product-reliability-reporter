@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { ScanError, scan } from './api'
 import type { Confidence, Extraction, Reason, ScanRequest, ScanResponse, SignalResult, StoreUrlSource, TrustReport, VideoInfo } from './types'
 
@@ -30,6 +30,12 @@ export default function App() {
   const [loading, setLoading] = useState(false)
 
   const canSubmit = caption.trim() !== '' || storeUrl.trim() !== ''
+
+  // As soon as the page opens, ask the server to load its slow parts (the Claude SDK)
+  // while the visitor is still pasting. Fire-and-forget: the page never waits for it.
+  useEffect(() => {
+    fetch('/api/warmup').catch(() => {})
+  }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault() // stop the browser's default full-page form submit

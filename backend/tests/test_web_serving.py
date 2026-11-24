@@ -50,3 +50,21 @@ def test_api_works_without_a_web_build(tmp_path: Path) -> None:
 
     assert client.post("/api/scan", json={"store_url": "example-store.com"}).status_code == 200
     assert client.get("/").status_code == 404
+
+
+def test_loading_the_app_does_not_load_the_anthropic_sdk() -> None:
+    """Cold-start guard: pages and store-link scans shouldn't wait for the SDK to load."""
+    import subprocess
+    import sys
+
+    code = "import sys, app.main; print('anthropic' in sys.modules)"
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+
+    assert result.stdout.strip() == "False"
+
+
+def test_warmup_endpoint(tmp_path: Path) -> None:
+    client = TestClient(offline_app(web_dist=tmp_path / "missing"))
+
+    assert client.get("/api/warmup").json() == {"ready": True}
+    assert client.get("/api/warmup").json() == {"ready": True}  # repeat calls are cheap no-ops

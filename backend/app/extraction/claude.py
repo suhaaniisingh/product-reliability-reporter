@@ -9,16 +9,31 @@ Why these settings (see docs/DECISIONS.md, 2026-11-23):
   stop_reason "refusal", so we check stop_reason before trusting the content.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import time
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-import anthropic
 from pydantic import ValidationError
 
 from app.extraction.base import ExtractionError, ExtractorNotConfigured, LLMExtraction
 from app.extraction.prompt import SYSTEM_PROMPT, build_user_message
+
+if TYPE_CHECKING:  # only for type hints; the SDK itself is imported on first use (see _anthropic)
+    import anthropic
+
+
+def _anthropic():
+    """Import the Anthropic SDK lazily. It's hundreds of small modules, and on a Cloud
+    Run cold start reading them made the server ~20 s slow to answer anything, even
+    pages and store-link scans that never call Claude. Now only the first caption
+    scan pays that cost."""
+    import anthropic
+
+    return anthropic
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +92,12 @@ class ClaudeExtractor:
         if self._client is None:
             if not os.environ.get("ANTHROPIC_API_KEY"):
                 raise ExtractorNotConfigured("Extraction isn't configured: set ANTHROPIC_API_KEY in backend/.env.")
-            self._client = anthropic.AsyncAnthropic(timeout=TIMEOUT_SECONDS, max_retries=MAX_RETRIES)
+            self._client = _anthropic().AsyncAnthropic(timeout=TIMEOUT_SECONDS, max_retries=MAX_RETRIES)
         return self._client
 
     async def extract(self, caption: str) -> LLMExtraction:
         client = self._get_client()
+        anthropic = _anthropic()
         started = time.perf_counter()
         try:
             response = await client.messages.parse(**build_request(caption, self._model), output_format=LLMExtraction)

@@ -31,4 +31,5 @@ COPY --from=web /web/dist /app/web/dist
 ENV PORT=8080 TRUSTED_PROXY_HOPS=1
 RUN useradd --create-home appuser && chown -R appuser /app
 USER appuser
-CMD ["sh", "-c", "exec .venv/bin/fastapi run app/main.py --host 0.0.0.0 --port ${PORT}"]
+# uvicorn directly (not the `fastapi run` CLI, which loads extra tooling first): faster cold starts.
+CMD ["sh", "-c", "exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]

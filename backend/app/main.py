@@ -16,8 +16,11 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.routes import scan
+from app.routes import scan, warmup
 
+# INFO and above reach Cloud Run's logs (Python's default shows only warnings).
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per outbound request is too noisy
 logger = logging.getLogger(__name__)
 
 # backend/app/main.py -> repo root -> web/dist
@@ -36,13 +39,14 @@ def create_app(web_dist: Path | None = DEFAULT_WEB_DIST) -> FastAPI:
     """
     app = FastAPI(
         title="Reliability Reporter API",
-        description="Extracts what a social video promotes, then (in later phases) scores the store behind it.",
-        version="0.1.0",
+        description="Extracts the store behind a social video promo and scores how trustworthy it looks, with reasons.",
+        version="0.2.0",
     )
 
     # API routes are registered first, so /api/... always reaches the API,
     # never the static files mounted below.
     app.include_router(scan.router)
+    app.include_router(warmup.router)
 
     if web_dist is not None and (web_dist / "index.html").is_file():
         # html=True serves index.html for "/" (like a normal web server).
