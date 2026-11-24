@@ -16,6 +16,8 @@ Each item: what it is, the phase it fits, and where the idea came from.
 
 - **Pages rendered by JavaScript:** contact details (and sometimes policies) that a site loads with JavaScript aren't in the HTML our fetcher receives (e.g. Nike's help page). Options: an LLM reading the pages we do get, or a headless browser (heavier). Postal addresses aren't detected at all yet. *Source: Phase 2 live checks, 2026-11-24.*
 
+- **Brand sites that aren't shops** (e.g. cerave.com) lose points for "no return policy / no contact" even when long-established: they send buyers to retailers, and their details are often rendered by JavaScript. Consider detecting "no checkout" sites, or weighting age + popularity differently. Decide with labelled data. *Source: live caption scan, 2026-11-24.*
+
 ## Phase 3: Labelled dataset + evaluation
 
 - **Add real captions to the eval set**, to check how optimistic the synthetic numbers are. *Source: Phase 1 caveat.*
@@ -35,6 +37,9 @@ Each item: what it is, the phase it fits, and where the idea came from.
 - **Crowdsourced purchase reports** (did it arrive, did it match the ad). This probably needs user accounts, which are a non-goal for the MVP, so it's parked. *Source: old brief, "later" list.*
 
 ## Engineering (any phase, when it pays off)
+
+- **A dedicated Cloud Run runtime service account** with only secret-read access. The default compute account currently also holds the Cloud Run Builder role (needed for source deploys), so the running app has more permissions than it needs. *Source: Phase 2 deploy.*
+- **Automatic deploys** (GitHub Actions or a Cloud Build trigger on push to `main`) once the manual deploy feels stable. *Source: Phase 2 decisions.*
 
 - **CI:** a GitHub Actions workflow that runs `pytest` and the web build on every push to `main`.
 - **Web page tests** (Vitest + React Testing Library), once the page has logic worth testing. *Source: old OPEN_QUESTIONS.md.*

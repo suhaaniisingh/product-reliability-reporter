@@ -1,0 +1,18 @@
+# Never upload secrets or local build output.
+.git
+.gitignore
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+backend/.cache
+backend/tests
+web/dist
+data
+docs
+.claude
+*.md
+.DS_Store

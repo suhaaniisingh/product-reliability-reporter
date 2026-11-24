@@ -129,3 +129,25 @@ cd backend && uv run python -m scripts.eval_extraction --split all --model claud
 **Follow-up, same day:** a code rule (a hashtag matching the store's domain name becomes the brand; see DECISIONS) fixes c02. Re-scored from cached model answers at $0:
 - Sonnet: dev 27/27, test 10/10 (not a clean measure: c02 motivated the rule), test2 8/8. All 45/45.
 - Haiku: unchanged at 42/45.
+
+## Phase 2: Trust score on real stores (2026-11-24)
+
+Live scans on the deployed service and locally, using the approved weights (store-link scans unless noted). The score is always 50 plus the listed reasons.
+
+| Store | Score | Label | Notable reasons |
+|---|---|---|---|
+| glossier.com | 85 | Higher trust | 14 years old (+15), Tranco rank 45,620 (+10), policy (+5), contact (+5) |
+| nike.com | 75 | Higher trust | 31 years (+15), rank 657 (+15), policy (+5); **contact not found (−10)**, because it's rendered by JavaScript |
+| kotn.com | 75 | Higher trust | 23 years (+15), not in top 50k (0), policy (+5), contact (+5) |
+| tentree.com | 75 | Higher trust | 26 years (+15), policy (+5, after fixing a link-matching bug), contact (+5) |
+| cerave.com (caption scan, guessed from "CeraVe") | 45 | Mixed signals | 22 years (+15); **no policy (−10), no contact (−10)**: a brand site, not a shop; confidence capped at medium (guessed) |
+| Google's Safe Browsing phishing test page | 10 | Lower trust | Capped at 10 by the Safe Browsing listing; other checks unavailable → low confidence |
+
+**What this shows:**
+- Established stores land in "Higher trust", and a listed unsafe site is capped regardless.
+- Two false negatives come from pattern matching on HTML: JavaScript-rendered contact details (nike.com) and brand sites that aren't shops (cerave.com). Both are in the backlog.
+- There's no measured precision or recall yet. That's Phase 3, with 200–300 labelled stores.
+
+**Latency (single live scans, not yet a benchmark):** store-link scan 5.2 s (nike.com; store pages 3.1 s), caption scan 4.0 s, page load with the server waking up 1.7 s. A proper p95 baseline is the first step of Phase 5.
+
+**Rate limiter, live:** 40 concurrent scans, each with a different fake `X-Forwarded-For`, gave 31 × 200 and 9 × 429. Spoofed headers don't get around the per-visitor limit.

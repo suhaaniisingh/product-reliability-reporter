@@ -290,3 +290,10 @@ Suhaani approved all of these at once, before the build started.
 - **Web page:** score, label and confidence; the reasons with their points; expandable details per check; "Advisory provided by Google"; a one-line privacy note; the guessed-store warning.
 - **Deployment:** a single Dockerfile (builds the page and the API) built by Cloud Build, in `us-central1`, with min 0 / max 1 instances (caps cost and keeps the in-memory rate limits correct with one counting server), 512 MB, keys in Secret Manager, public on the default `*.run.app` address, manual deploy for now. Claude may enable the needed Google Cloud APIs, create the secrets, and deploy.
 - **Testing:** up to $0.50 of Claude spend; scans of a few well-known and smaller real stores plus Google's Safe Browsing test page, using only public pages and the limits above.
+
+## 2026-11-24: Deployment details decided while deploying
+
+- **Build permissions:** new Google Cloud projects run Cloud Build as the default compute service account without build permissions, so the first deploy failed with PERMISSION_DENIED. Following Google's documented fix, that account was granted `roles/run.builder`. **Trade-off:** the same account is the running app's identity, so the app carries those permissions too. A dedicated minimal runtime account is in the backlog.
+- **Secrets:** `anthropic-api-key` and `safe-browsing-api-key` are in Secret Manager, created straight from `backend/.env` without being displayed. Read access is granted per secret to the runtime account only, and they're mounted as environment variables.
+- **Upload safety:** `.gcloudignore` / `.dockerignore` exclude `.env`, caches, tests and docs. The upload list was checked before deploying.
+- **Client IP on Cloud Run:** `TRUSTED_PROXY_HOPS=1` (the last `X-Forwarded-For` entry, which Cloud Run appends). Verified live: spoofed headers didn't get around the limit. Separate real visitors getting separate limits rests on community reports and is still to be confirmed from a second network.

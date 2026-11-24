@@ -2,7 +2,7 @@
 
 Tells a shopper whether the store behind a TikTok/Instagram product promo looks trustworthy, and **why**. Paste the video's caption (or the store link). The system works out the product, brand and store, then (from Phase 2) collects public trust signals about that store and returns an explainable score.
 
-> **Status: Phase 1 (extraction pipeline).** Caption → product / brand / store works end to end. Trust signals and scoring arrive in Phase 2. See [`PLAN.md`](PLAN.md) for the plan and status.
+> **Status: Phase 2 (trust signals and score), deployed at https://reliability-reporter-664438869164.us-central1.run.app.** Caption or store link → store → five public trust checks → a score out of 100 with the reasons behind every point. See [`PLAN.md`](PLAN.md) for the plan and status.
 
 ## How it fits together
 
@@ -14,8 +14,15 @@ Browser ──▶ web page (React + TS) ──POST /api/scan──▶ FastAPI
                                ──▶ apply_rules()        │  (code checks on the model's answer, DNS check for guesses)
                     store link ──▶ normalize_store_url()│  (the user's link always wins)
                                                         ▼
-                                         { video, extraction } JSON
+                    store ─────▶ run_signals()          │  (5 checks at once, each with a time limit)
+                                   domain age (RDAP) · Google Safe Browsing · store pages
+                                   (SSRF-safe fetcher, robots.txt) · Shopify · popularity (Tranco)
+                               ──▶ score_signals()        │  (start at 50, points with reasons, cap, confidence)
+                                                        ▼
+                                  { video, extraction, trust } JSON
 ```
+
+Every scan first passes a rate limiter (per-visitor token bucket, daily caps, a site-wide daily budget for caption scans).
 
 Why the caption has to be pasted: TikTok's and Instagram's official oEmbed endpoints no longer return captions or creators, and Meta's terms forbid extracting them from the embed HTML (checked 2026-11-23; see `docs/DECISIONS.md`).
 
@@ -24,7 +31,12 @@ Why the caption has to be pasted: TikTok's and Instagram's official oEmbed endpo
 | `backend/app/routes/scan.py` | `POST /api/scan` and its error mapping (422 / 502 / 503) |
 | `backend/app/scan.py` | Orchestration: which steps run for which input |
 | `backend/app/extraction/` | `base.py` (Extractor interface), `claude.py` + `prompt.py` (the LLM call), `postprocess.py` (rules), `video_url.py`, `store_url.py`, `domain_check.py`, `fake.py` (test doubles) |
+| `backend/app/signals/` | The trust checks: `base.py` (interface), `runner.py` (concurrency, timeouts), `fetcher.py` (SSRF-safe page fetching), `domain_age.py`, `safe_browsing.py`, `store_pages.py`, `popularity.py` |
+| `backend/app/scoring.py` | Turns check results into a score with reasons |
+| `backend/app/ratelimit.py` | In-house rate limiter (token bucket + daily caps) |
 | `backend/scripts/eval_extraction.py` | Extraction accuracy on `data/extraction_eval.csv` |
+| `backend/scripts/fetch_tranco.py` | Downloads the popularity list (run at build time) |
+| `Dockerfile` | One container: builds the page, serves page + API (Cloud Run) |
 | `web/` | React + TypeScript page (Vite, Tailwind CSS) |
 | `PLAN.md` | Phase-by-phase plan and status |
 | `docs/DECISIONS.md` | Every design decision, the options considered, and why |
@@ -41,11 +53,12 @@ Why the caption has to be pasted: TikTok's and Instagram's official oEmbed endpo
 
 ```bash
 cd backend && uv sync      # creates backend/.venv and installs Python dependencies
-cp .env.example .env       # then put your ANTHROPIC_API_KEY in backend/.env (git-ignored)
+cp .env.example .env       # then put your API keys in backend/.env (git-ignored)
+uv run python -m scripts.fetch_tranco   # download the popularity list (once)
 cd ../web && npm install   # installs web dependencies into web/node_modules
 ```
 
-Without a key, everything still runs: store-link scans work, and caption scans return a clear 503 message.
+Without keys, everything still runs: caption scans return a clear 503 message, and the Safe Browsing check reports "not configured".
 
 ## Run in development (two terminals)
 
@@ -72,10 +85,22 @@ cd ../backend && uv run fastapi run app/main.py
 
 Open **http://localhost:8000**. FastAPI serves both the API (`/api/...`) and the compiled page (`/`).
 
+## Deploy (Google Cloud Run)
+
+One-time setup (already done for this project): a billing account with a budget alert; the Cloud Run, Cloud Build, Artifact Registry and Secret Manager APIs enabled; the two keys stored as secrets (`anthropic-api-key`, `safe-browsing-api-key`) readable by the service's account; and the Cloud Run Builder role for the build account.
+
+```bash
+gcloud run deploy reliability-reporter --source . --region us-central1 \
+  --allow-unauthenticated --min-instances 0 --max-instances 1 --memory 512Mi --cpu 1 \
+  --set-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,GOOGLE_SAFE_BROWSING_API_KEY=safe-browsing-api-key:latest"
+```
+
+Cloud Build builds the `Dockerfile` (web page, Python dependencies, and a fresh popularity list) from the files allowed by `.gcloudignore`, which never includes `.env`. `max-instances 1` caps cost and keeps the in-memory rate limits correct.
+
 ## Tests, checks and eval
 
 ```bash
-cd backend && uv run pytest -v   # all offline: fake extractor, fake DNS, recorded API responses
+cd backend && uv run pytest -v   # all offline: fake extractor, fake DNS, fake websites, recorded API responses
 cd web && npm run lint           # lint the web code
 cd web && npm run build          # also type-checks all TypeScript
 
