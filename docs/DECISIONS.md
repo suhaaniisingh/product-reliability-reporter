@@ -164,3 +164,40 @@ One short entry per decision: the date, what we chose, why, and the alternatives
 - **Chose:** Claude handles pushing to GitHub, but only after Suhaani explicitly approves that specific phase at the end of its report. Commits stay local until then, and the next phase starts only after the push. Approving one phase never carries over to another.
 - **Why:** `origin/main` only ever holds work Suhaani has reviewed and can defend, and each push marks a finished, approved phase.
 - **Supersedes:** the "commit directly to `main` and push" part of the 2026-11-12 git workflow entry. Committing directly to `main` still stands.
+
+## 2026-11-24: Trust signals: domain age, blocklist, store-page checks, Shopify detection
+
+- **Chose (Suhaani approved):** four public signals.
+  1. **Domain age** via RDAP, the structured JSON successor to WHOIS.
+  2. **A blocklist check:** Google Safe Browsing; its terms are verified before building.
+  3. **Store-page checks:** return policy, contact details.
+  4. **Shopify-template detection.**
+- **How each check runs:** each is an independent module with the same interface (value, status ok / failed / timeout, explanation). They run concurrently with their own timeouts, so one failure never breaks a scan.
+- **Reviews:** researched separately (see the next entries).
+
+## 2026-11-24: Scoring: start at 50, add or subtract points, each with a reason
+
+- **Options:** a per-fact checklist with no overall score; hard rules or a decision tree; asking an LLM for a verdict; a learned model; additive points.
+- **Chose:** additive points from a neutral 50 ("no evidence either way"). Every adjustment carries a reason string. A few combination/override rules sit on top (e.g. a blocklist hit caps the score). The page shows a plain label (low / medium / high trust) next to the number, since the number is not a probability. Confidence drops when signals fail.
+- **Why:** it explains itself, needs no labelled data yet, and each rule is one testable line. It has the same shape as logistic regression (a starting value plus a weight per signal), so Phase 3 can compare hand-picked weights against weights learned from labelled stores, F1 vs F1.
+- **Known weaknesses:** the weights are judgement calls until Phase 3 measures them; simple adding can miss combinations, which the override rules partly address.
+
+## 2026-11-24: SSRF protection for fetching store pages
+
+- **Context:** the server fetches whatever store a user pastes. A public-looking domain can point to a private or internal address (e.g. the cloud metadata service at 169.254.169.254). Rejecting IPs and `localhost` in the pasted text, which Phase 1 already does, isn't enough.
+- **Chose (Suhaani approved):**
+  - Resolve the domain and require every address to be public (Python `ipaddress`).
+  - Connect to exactly the checked address, which defeats DNS rebinding.
+  - Follow redirects manually and re-check each hop, at most 3.
+  - http/https on the standard ports only; 5 s timeout; about 2 MB response cap; a few pages per store.
+  - Offline tests for each attack.
+
+## 2026-11-24: Cost protection for the public deployment, with a rate limiter written in-house
+
+- **Chose (Suhaani approved), four layers:**
+  1. A monthly spend cap in the Claude Console (Suhaani sets it).
+  2. A per-IP limit on caption scans (e.g. 10/min, 50/day; looser for store-link-only scans), returning HTTP 429 with `Retry-After`.
+  3. A daily global budget on caption scans across all users (e.g. 500/day ≈ $2.25), after which caption scans pause with a message.
+  4. The existing caption and output size caps.
+- **Rate limiter: written ourselves** rather than using `slowapi`. It's small and fully understood, which makes a good interview topic.
+- **Known limits:** counts live in one server's memory. That's fine on a single free instance; several instances would need a shared store such as Redis (Phase 5). The client IP must be read the way the chosen host documents (proxy headers).
