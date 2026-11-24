@@ -42,3 +42,5 @@ c40,test2,link_in_bio,tiktok,these crocs go with everything fr 🐊 link in bio 
 c41,test2,tricky,instagram,#fentybeauty dupe from the drugstore 😳 only $8,*,,,none,false,,Comparison hashtag: Fenty is not the seller; guessing fentybeauty.com would send people to the wrong store.
 c42,test2,code_only,instagram,15% off with code NOVA15 ✨ #ootd #fashion,,,,none,false,NOVA15,Negative case: generic fashion hashtags.
 c43,test2,tricky,tiktok,Aritzia's super puff but make it $60 cheaper 👀 the one I got is from frostline-outerwear.com #puffer,*,,frostline-outerwear.com,in_caption,false,,"Aritzia is a comparison; the seller is only implied by its domain, so brand is blank."
+c44,dev,explicit_url,instagram,Fall restock is live 🍂 every candle hand-poured. www.emberandwickco.com #emberandwick #candlelover,candle|candles,Ember and Wick|Ember & Wick|emberandwick,emberandwickco.com,in_caption,false,,Brand hashtag is the domain minus a 'co' suffix.
+c45,dev,explicit_url,tiktok,the only sunscreen that doesn't leave a white cast 🧴 sunveilshop.com #sunveil #spf,sunscreen,Sunveil,sunveilshop.com,in_caption,false,,Brand hashtag is the domain minus a 'shop' suffix.

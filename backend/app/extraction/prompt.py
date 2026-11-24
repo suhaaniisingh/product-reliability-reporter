@@ -22,7 +22,8 @@ domain; store_url_source = guessed_from_brand. Never invent a domain.
 - Otherwise null; store_url_source = none.
 
 brand: only if the caption names it: in text, as an @mention, or as a brand-name \
-hashtag (#glowrecipe), even when the same name is also in the web address. Not \
+hashtag (#glowrecipe), even when the web address repeats that name, with or without \
+extra words (glowrecipe.com, glowrecipeshop.com, glowrecipeco.com). Not \
 generic hashtags (#skincare, #ootd, #fyp, #ad, #tiktokmademebuyit), not a brand \
 mentioned only as a comparison ("a Charlotte Tilbury dupe"), and not derived from a \
 web address alone.
