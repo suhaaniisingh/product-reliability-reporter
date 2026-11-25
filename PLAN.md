@@ -26,7 +26,7 @@ Research on 2026-11-23 showed that TikTok's and Instagram's oEmbed endpoints **n
 | Phase | Status | Key metric |
 |---|---|---|
 | 1. Extraction pipeline | **Approved and pushed 2026-11-24** | Held-out: store 100% on both splits; all fields 90% (test) → 100% (test2, after hashtag fix) |
-| 2. Trust signals + rule-based score | **Built and deployed 2026-11-24, awaiting approval** | Deployed URL returns score + reasons |
+| 2. Trust signals + rule-based score | **Approved and pushed 2026-11-25** (live on Cloud Run) | Deployed URL returns score + reasons |
 | 3. Labelled dataset + evaluation | Not started | F1: rules vs. learned model |
 | 4. Chrome extension | Not started | Works on real TikTok/Instagram pages |
 | 5. Systems hardening | Not started | p95 latency, cache hit rate (before/after) |
@@ -138,6 +138,7 @@ The cases where the user supplies their own store link don't involve the LLM, so
 ## Phase 3: Labelled dataset + evaluation (outline)
 
 - **Decisions I'll propose:** label sources for 200–300 stores (public scam-domain lists plus known-legit stores), the feature set, the train/test split or cross-validation, and the learned model (e.g. logistic regression).
+- **Also to discuss at the start of Phase 3 (Suhaani, 2026-11-25):** the @handle feature. That covers extracting the brand's @handle from the caption, finding candidate store sites for it, checking that each site links back to the handle, and possibly a learned matcher that scores how likely a handle and a website belong to the same brand.
 - **Done when:** precision, recall, F1 and a confusion matrix are reproducible for both the rules and the model, written up in `docs/EVALUATION.md`.
 
 ## Phase 4: Chrome extension (outline)
