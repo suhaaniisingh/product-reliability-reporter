@@ -153,11 +153,10 @@ Suhaani writes the DevOps files and sets up the server; Claude explains each pie
 
 ## Phase 4: Checks as background jobs + data model (outline)
 
-- **Already decided (2026-11-26):** Postgres for jobs, cache and history (no Redis); polling (no push); SQLAlchemy 2.0 + Alembic; `/api/scan` → `/api/checks`; a `stores` table (not "sellers"); database tests against a real Postgres.
+- **Already decided (2026-11-26):** Postgres for jobs, cache and history (no Redis); our own small queue; the worker as a separate container from the same image; polling (no push); SQLAlchemy 2.0 + Alembic; `/api/scan` → `/api/checks`; a `stores` table (not "sellers"); database tests against a real Postgres.
 - **Decisions I'll propose:**
   - the schema: tables, keys, indexes, what each row means
-  - the queue: our own on `SKIP LOCKED` vs a library (open question 4); leases for jobs whose worker crashed
-  - where the worker runs (open question 5)
+  - the queue's details: we write our own on `SKIP LOCKED` (decided 2026-11-26); leases for jobs whose worker crashed, retries, what happens when a job runs twice
   - the async database driver
   - the API shape: statuses, partial results, errors
   - how the page polls (interval, when to stop)

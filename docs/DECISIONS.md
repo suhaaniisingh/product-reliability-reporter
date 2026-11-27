@@ -428,3 +428,15 @@ Suhaani approved all of these at once, before the build started.
   - Least privilege: likely just `activeTab` and `contextMenus`, confirmed in Phase 7.
   - No page reading, so no platform-terms question.
   - No per-capture LLM cost.
+
+## 2026-11-26: Our own job queue, with the worker as a separate container
+
+- **Decided by:** Suhaani.
+- **Queue: our own, small, on Postgres `SELECT … FOR UPDATE SKIP LOCKED`**, with a lease so a crashed worker's job gets picked up again.
+  - **Why:** the queue is the centre of the project's backend story. Writing it means having solved the questions interviews ask yourself: a worker crashing mid-job, two workers taking the same job, a job running twice.
+  - **Honest framing for interviews:** in industry, teams almost always use an existing queue (Celery, RQ, Sidekiq, AWS SQS, or Postgres-based libraries such as procrastinate). This one is written on purpose to learn the mechanics; in production we'd pick a library.
+  - **Alternative:** procrastinate or another library. Less code, but the hard parts stay hidden.
+- **Worker: a separate container,** started from the same image as the API with a different command (one extra block in docker-compose).
+  - **Why:** a slow or crashing check can't freeze the API, and each can be restarted on its own. It's the standard "web + worker" pattern (Celery, Sidekiq, Heroku-style apps).
+  - **Alternative:** a worker inside the API process. One less container, but no isolation. The earlier lean towards it only applied to Cloud Run's request-only CPU, which no longer applies on a VM.
+- **Also approved:** the server setup and automatic deploys belong to Phase 3.
