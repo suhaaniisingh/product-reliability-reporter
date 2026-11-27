@@ -1,0 +1,36 @@
+services:
+  api:                          # our app
+    build: .                    # build the image using the Dockerfile in this folder
+    ports:
+      - "8000:8080"             # "port on your Mac : port inside the container"
+    env_file:
+      - backend/.env            # path to the file holding your API keys
+    environment:
+      TRUSTED_PROXY_HOPS: "0"   # no proxy in front of us locally
+    depends_on:
+      postgres:
+        condition: service_healthy   # wait until Postgres is actually ready, not just started
+    deploy:
+      resources:
+        limits:
+          memory: 300M          # can't use more than 300 MB
+
+  postgres:                     # the database
+    image: postgres:18          # download the official image (no Dockerfile needed)
+    environment:
+      POSTGRES_USER: reporter
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}   # read from a secret file, explained below
+      POSTGRES_DB: reporter
+    volumes:
+      - pgdata:/var/lib/postgresql   # Postgres 18+: mount the parent folder (data lives in 18/docker inside it)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reporter -d reporter"]
+      interval: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  pgdata:                       # a named storage area that survives restarts
