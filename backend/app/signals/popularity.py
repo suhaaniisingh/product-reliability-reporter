@@ -29,7 +29,7 @@ class TrancoList:
         self.downloaded_on = downloaded_on
 
     @classmethod
-    def load(cls, path: Path) -> "TrancoList":
+    def load(cls, path: Path) -> TrancoList:
         with path.open(newline="") as file:
             ranks = {domain: int(rank) for rank, domain in csv.reader(file)}
         meta = path.with_suffix(".json")

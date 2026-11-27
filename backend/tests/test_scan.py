@@ -8,8 +8,8 @@ from fastapi.testclient import TestClient
 
 from app.extraction.base import ExtractionError, ExtractorNotConfigured, LLMExtraction
 from app.extraction.fake import FakeExtractor
-from app.signals.fake import FakeSignal
 from app.schemas import MAX_CAPTION_CHARS
+from app.signals.fake import FakeSignal
 
 GLOWLAB = LLMExtraction(
     product="vitamin C serum",

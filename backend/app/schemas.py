@@ -69,7 +69,7 @@ class ScanRequest(BaseModel):
         return None if value is None else normalize_store_url(value)
 
     @model_validator(mode="after")
-    def require_caption_or_store_url(self) -> "ScanRequest":
+    def require_caption_or_store_url(self) -> ScanRequest:
         if self.caption is None and self.store_url is None:
             raise ValueError("Provide the video's caption, the store link, or both.")
         return self

@@ -435,7 +435,7 @@ def consistency_report(runs: list[list[RowResult]]) -> str:
 
     lines += ["", "Rows that were wrong in at least one run (✓ = all fields right in that run):", ""]
     unstable = 0
-    for i, row_results in enumerate(zip(*runs)):
+    for row_results in zip(*runs, strict=True):
         marks = ["✓" if _all_ok(r) else "✗" for r in row_results]
         if "✗" in marks:
             unstable += "✓" in marks

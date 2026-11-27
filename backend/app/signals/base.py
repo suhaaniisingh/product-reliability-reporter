@@ -24,7 +24,7 @@ class Store:
     domain: str
 
     @classmethod
-    def from_url(cls, url: str) -> "Store":
+    def from_url(cls, url: str) -> Store:
         return cls(url=url, domain=store_domain(url))
 
 

@@ -97,7 +97,7 @@ async def check_emails(found: dict[str, str], store_domain: str, resolver: MailR
     """`found` maps each address to the page it was found on. Lookups run concurrently."""
     addresses = list(found)[:5]
     domains = sorted({a.rsplit("@", 1)[-1].lower() for a in addresses})
-    answers = dict(zip(domains, await asyncio.gather(*(resolver.receives_mail(d) for d in domains))))
+    answers = dict(zip(domains, await asyncio.gather(*(resolver.receives_mail(d) for d in domains)), strict=True))
     return [
         EmailCheck(a, found[a], email_owner(a, store_domain), answers[a.rsplit("@", 1)[-1].lower()]) for a in addresses
     ]

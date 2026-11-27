@@ -9,8 +9,8 @@ from app.extraction.domain_check import DomainResolver
 from app.extraction.postprocess import apply_rules
 from app.extraction.video_url import parse_video_url
 from app.schemas import Confidence, Extraction, ScanRequest, ScanResponse, StoreUrlSource, TrustReport
-from app.signals.base import Signal, Store
 from app.scoring import score_signals
+from app.signals.base import Signal, Store
 from app.signals.runner import run_signals
 
 

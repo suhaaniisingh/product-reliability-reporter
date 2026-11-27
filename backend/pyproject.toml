@@ -26,4 +26,16 @@ pythonpath = ["."]
 [dependency-groups]
 dev = [
     "pytest>=9.2.0",
+    "ruff>=0.17.6",
 ]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# Listed explicitly so a ruff upgrade can't silently change what CI checks.
+# E/W: style errors, F: real bugs (unused imports, undefined names), I: import order,
+# B: likely bugs (bugbear), UP: outdated syntax for our Python version.
+select = ["E", "W", "F", "I", "B", "UP"]
+# Line length is a formatting question, not a bug; not enforced (some reason strings are long on purpose).
+ignore = ["E501"]
