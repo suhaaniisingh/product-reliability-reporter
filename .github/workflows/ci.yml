@@ -1,0 +1,71 @@
+# CI: checks every push and pull request. Nothing reaches the server unless this passes
+# (the deploy job is added in a later step of Phase 3).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# A newer push to the same branch cancels the older check that's still running.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: these jobs only need to read the code.
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    # A real Postgres for the database tests that arrive in Phase 4. It's a throwaway
+    # container that only exists while this job runs, so a fixed password is fine here.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: reporter
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: reporter
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U reporter -d reporter"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://reporter:ci-only-password@localhost:5432/reporter
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true # reuse downloaded packages between runs (keyed on uv.lock)
+      - name: Install dependencies (exact versions from uv.lock)
+        run: uv sync --frozen
+      - name: Lint (ruff)
+        run: uv run --frozen ruff check .
+      - name: Tests (offline, no API keys are available here)
+        run: uv run --frozen pytest -q
+
+  web:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies (exact versions from package-lock.json)
+        run: npm ci
+      - name: Lint (oxlint)
+        run: npm run lint
+      - name: Type-check and build
+        run: npm run build
