@@ -1,0 +1,9 @@
+# Caddy: the only thing exposed to the internet (ports 80 and 443).
+# It gets and renews a free Let's Encrypt HTTPS certificate for this name automatically,
+# redirects http:// to https://, and passes each request on to the app container.
+reliability-reporter.duckdns.org {
+	encode zstd gzip
+	# Caddy replaces any X-Forwarded-For header a visitor sends with the visitor's real IP,
+	# so the app (TRUSTED_PROXY_HOPS=1) rate-limits the right address.
+	reverse_proxy api:8080
+}

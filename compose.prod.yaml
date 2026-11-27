@@ -1,0 +1,39 @@
+# Production additions, layered on top of compose.yaml on the server:
+#   docker compose -f compose.yaml -f compose.prod.yaml up -d
+# Everything not mentioned here (Postgres, health checks, memory limits) comes from compose.yaml,
+# so local and production stay the same where it matters.
+services:
+  api:
+    # Run the image CI built and tested, instead of building on the 1 GB server.
+    # IMAGE_TAG is the commit ID being deployed; rolling back = deploying an older one.
+    image: ghcr.io/suhaaniisingh/social-commerce-reliability-reporter:${IMAGE_TAG:-latest}
+    build: !reset null
+    ports: !reset [] # not reachable from outside; only Caddy talks to it
+    environment:
+      TRUSTED_PROXY_HOPS: "1" # Caddy sits in front and sets X-Forwarded-For
+    restart: unless-stopped # come back after a crash or a server reboot
+
+  postgres:
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # the HTTPS certificates: must survive restarts (Let's Encrypt limits re-issuing)
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+
+volumes:
+  caddy_data:
+  caddy_config:
