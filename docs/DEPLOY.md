@@ -69,3 +69,48 @@ gcloud compute ssh reporter-vm --zone us-central1-a
 
 - **Docker and the firewall:** Docker's published ports bypass Ubuntu's `ufw` firewall. What protects the server is Google's cloud firewall (only 22/80/443 open) plus never publishing database ports in `compose.yaml`.
 - **Costs:** the e2-micro, 30 GB standard disk and 1 GB/month of outbound traffic are free; the static IP is not. Stopping the VM does **not** stop the IP charge; releasing the address does (`gcloud compute addresses delete reporter-ip --region us-central1`).
+
+## The live site
+
+- **https://reliability-reporter.duckdns.org**: the DuckDNS name points at the static IP (set once by hand in DuckDNS; it never needs updating, because the IP is static).
+- **Caddy** (`deploy/Caddyfile`) is the only container with open ports (80/443). It gets and renews the Let's Encrypt certificate itself, redirects HTTP to HTTPS, and forwards requests to the `api` container. Certificates are kept in the `caddy_data` volume.
+- **`compose.prod.yaml`** is layered on top of `compose.yaml`: the `api` runs the CI-built image instead of building, publishes no port, trusts one proxy hop (Caddy), and every service restarts after a crash or reboot.
+
+## What's on the server (`/opt/reporter`, owned by `deploy`)
+
+| File | What | How it got there |
+|---|---|---|
+| `compose.yaml`, `compose.prod.yaml`, `deploy/Caddyfile` | how to run everything | copied by CI on every deploy |
+| `.env` | `POSTGRES_PASSWORD` for production: random, generated on the server, different from the local one | created once by hand |
+| `backend/.env` | the API keys (`ANTHROPIC_API_KEY`, `GOOGLE_SAFE_BROWSING_API_KEY`) | copied once by hand; mode 600 |
+
+## How a deploy happens (`.github/workflows/ci.yml`)
+
+1. A push to `main` runs the checks (lint, tests, web build).
+2. Only if all pass, the **image** job builds the Docker image and publishes it to GitHub Container Registry as `ghcr.io/suhaaniisingh/social-commerce-reliability-reporter`, tagged with the commit ID and `latest`.
+3. The **deploy** job SSHes into the server as `deploy`, copies the compose files and Caddy config, pulls the image for that commit, and restarts with `docker compose up -d --wait`. Only one deploy runs at a time.
+4. A **smoke test** checks that the live site answers over HTTPS; if it doesn't, the run fails and shows red.
+
+**GitHub secrets used** (repo → Settings → Secrets and variables → Actions):
+- `DEPLOY_SSH_KEY`: the private key for the `deploy` user. It exists only in GitHub; its public half is in `/home/deploy/.ssh/authorized_keys`. Anyone with it can run Docker on the server (effectively root), so if it might have leaked: remove that line from `authorized_keys` and make a new key.
+- `DEPLOY_KNOWN_HOSTS`: the server's SSH host key, read from the server itself through `gcloud`. CI refuses to connect if the server's identity doesn't match, so it can't be tricked into deploying to an impostor.
+
+## Rolling back
+
+Re-run an older successful run's **deploy** job in the Actions tab, or by hand:
+
+```bash
+gcloud compute ssh reporter-vm --zone us-central1-a
+sudo -iu deploy
+cd /opt/reporter
+IMAGE_TAG=<older commit ID> docker compose -f compose.yaml -f compose.prod.yaml up -d
+```
+
+## Useful commands on the server (as `deploy`)
+
+```bash
+cd /opt/reporter
+docker compose -f compose.yaml -f compose.prod.yaml ps          # what's running
+docker compose -f compose.yaml -f compose.prod.yaml logs -f api # the app's logs
+docker stats --no-stream                                        # memory per container
+```

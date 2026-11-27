@@ -1,15 +1,16 @@
-# CI: checks every push and pull request. Nothing reaches the server unless this passes
-# (the deploy job is added in a later step of Phase 3).
+# CI/CD: checks every push and pull request. On a push to main, once every check passes,
+# it builds the Docker image, publishes it, and deploys it to the server (docs/DEPLOY.md).
 name: CI
 
 on:
   push:
   pull_request:
 
-# A newer push to the same branch cancels the older check that's still running.
+# A newer push to the same branch cancels the older check that's still running,
+# except on main, where a run may be mid-deploy and must finish.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Least privilege: these jobs only need to read the code.
 permissions:
@@ -69,3 +70,76 @@ jobs:
         run: npm run lint
       - name: Type-check and build
         run: npm run build
+
+  # Build the image once, here, and run that exact image on the server.
+  image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend, web]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write # publish to GitHub Container Registry
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # a short-lived token GitHub creates for this run
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          # Tagged with the commit ID (what the server runs; rollback = an older ID) and "latest".
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: image
+    runs-on: ubuntu-24.04
+    # Never two deploys at once; a second one waits for the first.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    env:
+      SERVER: deploy@34.68.212.170
+      SITE: https://reliability-reporter.duckdns.org
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up SSH (deploy key + the server's pinned host key)
+        # Secrets go in through environment variables, never pasted into the script text.
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Copy the compose files and Caddy config
+        run: |
+          scp -o StrictHostKeyChecking=yes compose.yaml compose.prod.yaml "$SERVER:/opt/reporter/"
+          scp -o StrictHostKeyChecking=yes deploy/Caddyfile "$SERVER:/opt/reporter/deploy/"
+      - name: Pull the new image and restart
+        run: |
+          ssh -o StrictHostKeyChecking=yes "$SERVER" "
+            set -e
+            cd /opt/reporter
+            export IMAGE_TAG=${{ github.sha }}
+            docker compose -f compose.yaml -f compose.prod.yaml pull --quiet
+            docker compose -f compose.yaml -f compose.prod.yaml up -d --remove-orphans --wait
+            docker image prune -f
+          "
+      - name: Smoke test (the live site answers over HTTPS)
+        run: |
+          for _ in $(seq 1 12); do
+            if curl -fsS -o /dev/null "$SITE/" && curl -fsS -o /dev/null "$SITE/api/warmup"; then
+              echo "Live: $SITE"; exit 0
+            fi
+            sleep 5
+          done
+          echo "The site didn't answer after deploying." >&2; exit 1
