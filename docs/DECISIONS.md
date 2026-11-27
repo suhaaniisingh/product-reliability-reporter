@@ -440,3 +440,22 @@ Suhaani approved all of these at once, before the build started.
   - **Why:** a slow or crashing check can't freeze the API, and each can be restarted on its own. It's the standard "web + worker" pattern (Celery, Sidekiq, Heroku-style apps).
   - **Alternative:** a worker inside the API process. One less container, but no isolation. The earlier lean towards it only applied to Cloud Run's request-only CPU, which no longer applies on a VM.
 - **Also approved:** the server setup and automatic deploys belong to Phase 3.
+
+## 2026-11-26: Phase 3 decisions: the server, deploys and CI
+
+- **VM: Google Cloud e2-micro** (Always Free: 1 GB RAM, 2 shared vCPUs, 30 GB standard disk, in us-central1/us-west1/us-east1). Its external IPv4 address costs about **$3.65/month** (the free allowance is 1 hour a month).
+  - **Decided by:** Suhaani.
+  - **Why:** it stays up. Nothing is reclaimed or quietly reduced, and it lives in the existing Google Cloud project with its budget alert. 1 GB of RAM is tight (Postgres + API + worker + Caddy is estimated at ~700 MB), so we use swap, memory limits per container, and image builds in CI rather than on the VM.
+  - **Rejected:**
+    - **Oracle Always Free** ($0; ARM, 2 CPUs and 12 GB). Its idle instances (under 20% CPU, network and memory for 7 days) may be reclaimed, which a low-traffic app matches. Free capacity is often unavailable, and the limits were cut in mid-2026 without announcement.
+    - **AWS:** the free plan ends after 6 months.
+    - **No public IPv4 address:** the VM couldn't reach store websites without Cloud NAT, which also costs money.
+  - **Exception:** this is the project's one accepted exception to "free tiers only".
+- **OS: Ubuntu 24.04 LTS.** Security updates until 2029, and most tutorials assume it. *Alternatives:* Debian (lighter); Container-Optimized OS (minimal, but less to learn from).
+- **Server security:** SSH keys only, no root login, automatic security updates, and a Google Cloud firewall allowing only ports 22, 80 and 443. Postgres's port is never published. *Note:* Docker's published ports bypass Ubuntu's `ufw`, so the cloud firewall plus unpublished ports are what protect the server.
+- **Setup method:** by hand first, written down in `docs/DEPLOY.md`, then turned into a bootstrap script so the server can be rebuilt. *Rejected for now:* Terraform/Ansible, overkill for one server.
+- **Deploys:** CI builds the Docker image once, pushes it to GitHub Container Registry (free for a public repo) tagged with the commit ID, then SSHes into the VM to pull and restart. *Why:* the exact image that was tested is the one that runs; rollback = redeploy the previous tag. *Alternatives:* building on the VM (slow, and could run out of memory with 1 GB); Watchtower (less control); Kamal.
+- **HTTPS: Caddy** reverse proxy with automatic Let's Encrypt certificates, on a **free DuckDNS subdomain** (Suhaani's choice). *Alternatives:* nginx + certbot; Cloudflare Tunnel; a paid domain.
+- **Secrets:** a `.env` file on the VM, readable only by the deploy user, placed by hand. CI holds only the SSH deploy key and the registry token, never the API keys. *Alternatives:* GitHub Actions secrets written to the VM at each deploy; Secret Manager read by the VM.
+- **CI (GitHub Actions):** on every push and pull request, ruff (a Python linter, new), pytest with a Postgres service container, and the web lint + build. A deploy job runs only on `main` after all of these pass, with at most one deploy at a time.
+- **Ways of working:** Suhaani approved these on Claude's recommendation before knowing the tools. Each is explained before she writes it.

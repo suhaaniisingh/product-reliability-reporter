@@ -138,17 +138,25 @@ The cases where the user supplies their own store link don't involve the LLM, so
   - the free host (researched then)
 - **Done when:** a deployed URL returns a score with reasons for a real store.
 
-## Phase 3: DevOps foundation: containers, CI/CD, the server (outline)
+## Phase 3: DevOps foundation: containers, CI/CD, the server
 
 Suhaani writes the DevOps files and sets up the server; Claude explains each piece first and reviews after.
 
-- **Decisions I'll propose:**
-  - the VM provider (free tiers researched first: limits, reliability, card requirements, idle-reclaim rules)
-  - the server setup: OS updates, SSH keys only, firewall, a non-root deploy user
-  - HTTPS: a reverse proxy (e.g. Caddy) and a domain name (a free option, or a cheap domain)
-  - how secrets reach the server (instead of Secret Manager)
-  - the CI workflow: tests, lint, the web build, and a Postgres service container
-  - the deploy step: how GitHub Actions ships a new version to the VM, and how to roll back
+- **Decided (2026-11-26, see DECISIONS):**
+  - **The server:** a Google Cloud e2-micro VM (~$3.65/month for its IPv4 address), Ubuntu 24.04 LTS.
+  - **Securing it:** SSH keys only, no root login, automatic security updates, a cloud firewall allowing only 22/80/443, and Postgres never exposed.
+  - **Setting it up:** by hand first, recorded in `docs/DEPLOY.md`, then a bootstrap script.
+  - **HTTPS:** Caddy, on a DuckDNS subdomain.
+  - **Shipping code:** CI builds the image, pushes it to GHCR tagged with the commit ID, then deploys over SSH. Rollback = the previous tag.
+  - **Secrets:** a `.env` file on the VM, placed by hand; CI holds only the deploy key and the registry token.
+  - **CI:** ruff, pytest with a Postgres service container, web lint + build, then a deploy job on `main` only.
+- **Build order:**
+  1. docker-compose locally (`api` + `postgres`, memory limits, health checks)
+  2. the CI workflow
+  3. setting up the server by hand + the runbook
+  4. Caddy + DuckDNS
+  5. the deploy job
+  6. retire Cloud Run (service, images, the extra role)
 - **Done when:** a push to `main` runs CI and, when green, deploys to the VM, which serves the app over HTTPS. Cloud Run is retired.
 
 ## Phase 4: Checks as background jobs + data model (outline)

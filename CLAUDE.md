@@ -42,7 +42,7 @@ This is a **portfolio project for backend / SWE / cloud internship recruiting**,
 - **LLM helper:** Claude Sonnet 5.5 via the `anthropic` SDK, behind the `Extractor` interface.
 - **Containers:** Docker + docker-compose, the same setup locally and on the server.
 - **CI/CD:** GitHub Actions.
-- **Hosting:** free tiers only. A **self-managed always-free VM** running docker-compose (decided 2026-11-26; provider chosen in Phase 3 after research). The current Cloud Run deploy stays live until the VM takes over.
+- **Hosting:** free tiers only, with one accepted exception: a **self-managed Google Cloud e2-micro VM** (Always Free) running docker-compose, whose public IPv4 address costs about $3.65/month (decided 2026-11-26). HTTPS via Caddy on a free DuckDNS subdomain. The current Cloud Run deploy stays live until the VM takes over.
 - **Load testing:** decided in Phase 6 (k6 or Locust).
 
 ## Architecture (target, built up over the phases)
