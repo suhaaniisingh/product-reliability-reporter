@@ -42,8 +42,7 @@ Kept here so the reasoning isn't lost. Not to be built in this project; some may
 
 ## Engineering (any phase, when it pays off)
 
-- **A dedicated Cloud Run runtime service account**: no longer needed once the app moves to the VM in Phase 3 (then: remove the Cloud Run service and the extra role). *Source: Phase 2 deploy.*
-- **Cold starts:** go away on an always-on VM (Phase 3). Then decide whether `/api/warmup` is still needed. *Source: decision of 2026-11-24.*
+- **The default compute service account still has the project-wide Editor role** (Google's default). Nothing uses it now (the VM runs with no service account), so it could be removed or the account disabled. *Source: Cloud Run retirement, 2026-11-27.*
 - **CI and automatic deploys:** now part of Phase 3. *Source: Phase 2 decisions.*
 - **Web page tests** (Vitest + React Testing Library), once the page has logic worth testing. *Source: old OPEN_QUESTIONS.md.*
 - **Investigate the Instagram Graph API "Business Discovery" endpoint** for public business/creator account data. Not verified yet: it likely needs a Meta app, an Instagram professional account, and App Review. *Source: Phase 1 research.*

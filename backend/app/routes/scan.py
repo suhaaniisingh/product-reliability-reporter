@@ -37,7 +37,7 @@ async def scan(
     ip = client_ip(
         http_request.headers.get("x-forwarded-for"),
         http_request.client.host if http_request.client else None,
-        int(os.environ.get("TRUSTED_PROXY_HOPS", "0")),  # 1 on Cloud Run (its front end appends one entry)
+        int(os.environ.get("TRUSTED_PROXY_HOPS", "0")),  # 1 on the server (Caddy sets one entry)
     )
     decision = limiter.check(ip, "caption" if request.caption is not None else "store")
     if not decision.allowed:

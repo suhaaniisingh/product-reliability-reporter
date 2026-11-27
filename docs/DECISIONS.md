@@ -459,3 +459,26 @@ Suhaani approved all of these at once, before the build started.
 - **Secrets:** a `.env` file on the VM, readable only by the deploy user, placed by hand. CI holds only the SSH deploy key and the registry token, never the API keys. *Alternatives:* GitHub Actions secrets written to the VM at each deploy; Secret Manager read by the VM.
 - **CI (GitHub Actions):** on every push and pull request, ruff (a Python linter, new), pytest with a Postgres service container, and the web lint + build. A deploy job runs only on `main` after all of these pass, with at most one deploy at a time.
 - **Ways of working:** Suhaani approved these on Claude's recommendation before knowing the tools. Each is explained before she writes it.
+
+## 2026-11-27: Details decided while building the DevOps foundation
+
+- **Docker Desktop on the Mac** (Suhaani), set to start at login. Alternatives: OrbStack, Colima, Podman Desktop.
+- **Two `.env` files with different jobs:** the root `.env` holds `POSTGRES_PASSWORD` and is read by compose itself; `backend/.env` holds the API keys and is given only to the `api` container. *Why:* least privilege. The database container never receives the API keys.
+- **Postgres 18's volume is mounted at `/var/lib/postgresql`** (not the old `/var/lib/postgresql/data`). Since version 18, the image keeps data in a versioned subfolder (`18/docker`), which makes major-version upgrades possible. Read from the image's own settings.
+- **Ruff with an explicit rule set** (`E`, `W`, `F`, `I`, `B`, `UP`), so a ruff upgrade can't silently change what CI checks. Line length is not enforced: it's formatting, not bugs. The 8 existing findings were fixed.
+- **GitHub Actions pinned to versions that exist:** `setup-uv` publishes only exact versions (`v10.4.0`), while the others have major tags (`v7`, `v4`). CI's first run failed on this and was fixed.
+- **A newer push cancels an older CI run, except on `main`,** where the run may be in the middle of deploying. Deploys have their own queue, so two never run at once.
+- **Deploys use plain `ssh`/`scp`,** not a third-party "SSH deploy" action. *Why:* that action would receive our most sensitive secret, so we keep it out of other people's code. The server's host key is pinned (`DEPLOY_KNOWN_HOSTS`, read from the server through `gcloud`), so CI can't be tricked into deploying to an impostor. Secrets reach the script through environment variables, never pasted into its text.
+- **The deploy private key exists only as a GitHub secret.** The local copy was deleted after storing it.
+- **Production gets its own random database password,** generated on the server and never shown. It's different from the local one.
+- **The image is public on GitHub Container Registry** (it inherited the public repo's visibility), so the server pulls without storing a registry password. It contains no secrets: `.dockerignore` excludes `.env`.
+- **Deploy smoke test:** after restarting, CI checks that `/` and `/api/warmup` answer over HTTPS (retrying for a minute) and fails the run if not.
+- **The VM has no service account, and project-wide SSH keys are blocked;** the default Windows Remote Desktop firewall rule was deleted.
+- **VM snapshots: not used.** The server is rebuildable from `deploy/server-setup.sh` + `docs/DEPLOY.md`. Only the database will need backups (Phase 4, once it holds data).
+
+## 2026-11-27: Cloud Run retired
+
+- **Deleted (Suhaani approved):** the Cloud Run service, its Artifact Registry repository (old images), the Cloud Run Builder role on the default compute service account, and the two Secret Manager secrets. The keys themselves stay valid; they live in `backend/.env` locally and on the server.
+- **Also removed:** `.gcloudignore` (only `gcloud run deploy --source` used it).
+- **Left:** the default compute service account still has Google's default project-wide Editor role. Nothing uses it now; noted in the backlog.
+- **Effect:** no more cold starts. The page answered in 0.14 s, compared with ~5 s after Cloud Run had been idle.

@@ -1,5 +1,5 @@
-# One container that serves both the API and the built web page (Cloud Run).
-# Built by Google Cloud Build: gcloud run deploy --source . (see README).
+# One image that serves both the API and the built web page.
+# Built by CI (.github/workflows/ci.yml) and run on the server with docker compose (docs/DEPLOY.md).
 
 # --- Stage 1: build the web page (Node is only needed here, not at runtime) ---
 FROM node:24-slim AS web
@@ -27,9 +27,9 @@ RUN .venv/bin/python -m scripts.fetch_tranco
 # FastAPI serves the page from /app/web/dist (see app/main.py).
 COPY --from=web /web/dist /app/web/dist
 
-# Cloud Run's front end appends exactly one X-Forwarded-For entry (see app/ratelimit.py).
+# Behind one proxy by default (Caddy on the server); compose.yaml sets 0 for local runs (see app/ratelimit.py).
 ENV PORT=8080 TRUSTED_PROXY_HOPS=1
 RUN useradd --create-home appuser && chown -R appuser /app
 USER appuser
-# uvicorn directly (not the `fastapi run` CLI, which loads extra tooling first): faster cold starts.
+# uvicorn directly (not the `fastapi run` CLI, which loads extra tooling first): faster startup.
 CMD ["sh", "-c", "exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]

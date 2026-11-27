@@ -12,9 +12,8 @@ and every scan makes our server visit other websites. Limits per visitor (IP):
 - site-wide: a daily budget of caption scans across everyone, so many visitors
   (or a botnet) each staying under their own limit still can't run up the bill.
 
-State lives in this process's memory. That's correct here because Cloud Run is
-configured with at most one instance; several instances would need a shared
-store such as Redis (Phase 5).
+State lives in this process's memory. That's correct here because exactly one app
+container runs, on one server; several would need shared state (e.g. in Postgres).
 """
 
 import time
@@ -129,7 +128,7 @@ class RateLimiter:
 def client_ip(forwarded_for: str | None, peer: str | None, trusted_proxy_hops: int) -> str:
     """Which IP to rate-limit.
 
-    Behind a proxy (Cloud Run's front end), the TCP peer is the proxy, and the
+    Behind a proxy (Caddy on our server), the TCP peer is the proxy, and the
     visitor's IP is in X-Forwarded-For. A visitor can put anything they like at the
     *start* of that header, so we count from the *end*: each trusted proxy appends
     exactly one entry. With 0 trusted hops (local development) the header is

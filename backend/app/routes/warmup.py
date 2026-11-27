@@ -1,6 +1,10 @@
 """GET /api/warmup: load slow-to-import pieces before the first caption scan needs them.
 
-Why this is an endpoint and not a background thread (measured 2026-11-24): with
+The web page calls it as soon as it opens, so the first caption scan doesn't pay
+for importing the Anthropic SDK and loading the popularity list. The deploy's smoke
+test also calls it.
+
+History: it became an endpoint rather than a background thread (measured 2026-11-24) because, with
 Cloud Run's request-based billing, an instance only gets CPU while it's handling
 a request. A background warm-up thread started at boot took 30 s, because it
 only progressed while other requests were running. So the web page calls this

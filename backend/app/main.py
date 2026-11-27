@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.routes import scan, warmup
 
-# INFO and above reach Cloud Run's logs (Python's default shows only warnings).
+# INFO and above reach the container logs (Python's default shows only warnings).
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per outbound request is too noisy
 logger = logging.getLogger(__name__)

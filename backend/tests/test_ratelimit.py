@@ -113,7 +113,7 @@ def test_a_refused_scan_uses_up_nothing(t: FakeTime) -> None:
     [
         (None, "10.0.0.1", 0, "10.0.0.1"),  # local development: no proxy
         ("6.6.6.6", "10.0.0.1", 0, "10.0.0.1"),  # untrusted header is ignored
-        ("203.0.113.7", "169.254.1.1", 1, "203.0.113.7"),  # Cloud Run: proxy appended the real IP
+        ("203.0.113.7", "169.254.1.1", 1, "203.0.113.7"),  # behind one proxy: it set the real IP
         ("6.6.6.6, 203.0.113.7", "169.254.1.1", 1, "203.0.113.7"),  # a spoofed entry in front is ignored
         ("", "169.254.1.1", 1, "169.254.1.1"),
     ],

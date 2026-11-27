@@ -2,7 +2,7 @@
 
 Tells a shopper whether the store behind a TikTok/Instagram product promo looks trustworthy, and **why**. Paste the video's caption (or the store link). The system works out the product, brand and store, then (from Phase 2) collects public trust signals about that store and returns an explainable score.
 
-> **Status: Phase 2 (trust signals and score), deployed at https://reliability-reporter-664438869164.us-central1.run.app.** Caption or store link → store → five public trust checks → a score out of 100 with the reasons behind every point. See [`PLAN.md`](PLAN.md) for the plan and status.
+> **Status: Phase 3 (DevOps foundation): live at https://reliability-reporter.duckdns.org**, deployed automatically from `main` by CI/CD. Caption or store link → store → five public trust checks → a score out of 100 with the reasons behind every point. See [`PLAN.md`](PLAN.md) for the plan and status.
 
 ## How it fits together
 
@@ -36,7 +36,11 @@ Why the caption has to be pasted: TikTok's and Instagram's official oEmbed endpo
 | `backend/app/ratelimit.py` | In-house rate limiter (token bucket + daily caps) |
 | `backend/scripts/eval_extraction.py` | Extraction accuracy on `data/extraction_eval.csv` |
 | `backend/scripts/fetch_tranco.py` | Downloads the popularity list (run at build time) |
-| `Dockerfile` | One container: builds the page, serves page + API (Cloud Run) |
+| `Dockerfile` | One image: builds the page, serves page + API |
+| `compose.yaml`, `compose.prod.yaml` | The app + Postgres together (local), plus Caddy/HTTPS and the CI-built image (server) |
+| `.github/workflows/ci.yml` | CI/CD: lint, tests, web build; on `main`, build the image and deploy |
+| `deploy/` | Server setup script and Caddy config |
+| `docs/DEPLOY.md` | How the server is set up, deployed to, and rolled back |
 | `web/` | React + TypeScript page (Vite, Tailwind CSS) |
 | `PLAN.md` | Phase-by-phase plan and status |
 | `docs/DECISIONS.md` | Every design decision, the options considered, and why |
@@ -85,17 +89,17 @@ cd ../backend && uv run fastapi run app/main.py
 
 Open **http://localhost:8000**. FastAPI serves both the API (`/api/...`) and the compiled page (`/`).
 
-## Deploy (Google Cloud Run)
-
-One-time setup (already done for this project): a billing account with a budget alert; the Cloud Run, Cloud Build, Artifact Registry and Secret Manager APIs enabled; the two keys stored as secrets (`anthropic-api-key`, `safe-browsing-api-key`) readable by the service's account; and the Cloud Run Builder role for the build account.
+## Run with Docker (the app + Postgres, as on the server)
 
 ```bash
-gcloud run deploy reliability-reporter --source . --region us-central1 \
-  --allow-unauthenticated --min-instances 0 --max-instances 1 --memory 512Mi --cpu 1 --cpu-boost \
-  --set-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,GOOGLE_SAFE_BROWSING_API_KEY=safe-browsing-api-key:latest"
+docker compose up --build    # then open http://localhost:8000; Ctrl+C to stop
 ```
 
-Cloud Build builds the `Dockerfile` (web page, Python dependencies, and a fresh popularity list) from the files allowed by `.gcloudignore`, which never includes `.env`. `max-instances 1` caps cost and keeps the in-memory rate limits correct.
+Needs Docker Desktop, `backend/.env` (API keys) and a root `.env` with `POSTGRES_PASSWORD=...` (both git-ignored).
+
+## Deploy
+
+Automatic: every push to `main` that passes CI is built into an image, published to GitHub Container Registry, and deployed to the Google Cloud e2-micro server over SSH, then smoke-tested over HTTPS. Server setup, secrets and rollback are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Tests, checks and eval
 

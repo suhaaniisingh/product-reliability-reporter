@@ -28,8 +28,8 @@ Research on 2026-11-23 showed that TikTok's and Instagram's oEmbed endpoints **n
 | Phase | Status | Key metric |
 |---|---|---|
 | 1. Caption → store extraction helper | **Approved and pushed 2026-11-24** | Held-out: store 100% on both splits; all fields 90% (test) → 100% (test2, after hashtag fix) |
-| 2. Trust signals + rule-based score + first deploy | **Approved and pushed 2026-11-25** (live on Cloud Run) | Deployed URL returns score + reasons |
-| 3. DevOps foundation: containers, CI/CD, the server | Not started | Push → green CI → automatic deploy to the VM over HTTPS |
+| 2. Trust signals + rule-based score + first deploy | **Approved and pushed 2026-11-25** (on Cloud Run until 2026-11-27) | Deployed URL returns score + reasons |
+| 3. DevOps foundation: containers, CI/CD, the server | **Built 2026-11-27, awaiting approval** (live at https://reliability-reporter.duckdns.org) | Push → green CI → automatic deploy to the VM over HTTPS |
 | 4. Checks as background jobs + data model | Not started | Every check runs as a job and is stored |
 | 5. Reliability + score validation | Not started | Per-source failure rate before/after retries; score separation on ~100 stores |
 | 6. Caching, deduplication, measured performance | Not started | p95 latency, throughput, cache hit rate (before/after) |
