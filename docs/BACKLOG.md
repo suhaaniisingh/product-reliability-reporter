@@ -1,10 +1,10 @@
 # Backlog
 
-Ideas and tasks for **later** phases. Writing them down here keeps the current phase focused. Nothing here gets built until its phase starts (or we explicitly agree to pull it forward).
+Ideas and tasks for **later** phases (phase numbers follow the plan of 2026-11-26). Writing them down here keeps the current phase focused. Nothing here gets built until its phase starts (or we explicitly agree to pull it forward).
 
 Each item: what it is, the phase it fits, and where the idea came from.
 
-## Phase 2: Trust signals + rule-based score
+## Trust signals and scoring (any phase, when it pays off)
 
 - **Normalize store URLs before checking.** Add `https://` when it's missing, lowercase the host, strip `www.` and tracking parameters (`utm_*`, `ref`), and compare by registrable domain. *Source: old OPEN_QUESTIONS.md.* (A basic version, adding `https://` and lowercasing the host, is built in Phase 1 for the user-supplied `store_url` field and for eval scoring. See DECISIONS 2026-11-23.)
 - **Business age beyond WHOIS.** Also check the earliest Wayback Machine snapshot, so a business that is older than its current domain isn't penalized. *Source: old brief, signal 1.*
@@ -18,30 +18,32 @@ Each item: what it is, the phase it fits, and where the idea came from.
 
 - **Brand sites that aren't shops** (e.g. cerave.com) lose points for "no return policy / no contact" even when long-established: they send buyers to retailers, and their details are often rendered by JavaScript. Consider detecting "no checkout" sites, or weighting age + popularity differently. Decide with labelled data. *Source: live caption scan, 2026-11-24.*
 
-## Phase 3: Labelled dataset + evaluation
+## Phase 5: Score validation
 
-- **Add real captions to the eval set**, to check how optimistic the synthetic numbers are. *Source: Phase 1 caveat.*
+- Use public scam-domain lists as one label source for the ~100-store check, recording the source for every label. *Source: CLAUDE.md.*
 
-- Use public scam-domain lists as one label source, recording the source for every label. *Source: CLAUDE.md.*
+## Phase 7: Chrome extension
 
-## Phase 4: Chrome extension
-
-- **Terms check before reading captions from the page.** The extension would read the caption from the page the user is already viewing (a content script reading the DOM, started by the user). Check TikTok's and Instagram's terms on this before building it, and ask Suhaani. *Source: Phase 1 research.*
+- **Terms check before reading anything from the page.** The planned design uses only the tab's URL and text the user selects (right-click), which needs no page reading. If we ever want a content script reading the DOM, check TikTok's and Instagram's terms first and ask Suhaani. *Source: Phase 1 research.*
 - **TikTok embed deprecation.** TikTok's docs say "Embed Videos will be deprecated soon" and recommend the Embed Player (`tiktok.com/player/v1/{id}`) instead. If we ever show the video in our UI, use the Embed Player. *Source: Phase 1 research, docs page dated 2026-10-23.*
 
-## Phase 6 / stretch
+## Out of scope since the direction change (2026-11-26)
 
-- **Product photo origin:** reverse image search for the product photos on AliExpress/Temu. Overlaps with the dropshipping/markup detection already planned for Phase 6. *Source: old brief, signal 5.*
-- **Marketplace presence:** "this product is also sold on Amazon, with buyer protection". *Source: old brief, "later" list.*
+Kept here so the reasoning isn't lost. Not to be built in this project; some may fit the separate ML project.
+
+- **@handle → store matching.** If the @handle feature is ever built, use the simple link-back rule (the candidate site links to the handle), not a learned matcher. *Source: discussion 2026-11-25.*
+- **Add real captions to the extraction eval set.** The eval tooling is frozen; the helper's numbers stand as recorded. *Source: Phase 1 caveat.*
+- **Product photo origin** (reverse image search on AliExpress/Temu) and **dropshipping/markup detection** (e.g. CLIP image embeddings). *Source: old brief, signal 5; old Phase 6.*
+- **Reading the brand from a video frame or screenshots** (the extension capture sessions). Multimodal extraction is out of scope. *Source: decisions of 2026-11-24.*
 - **"Claimed vs. real":** compare official product images with independent customer photos. *Source: old brief, "later" list.*
-- **Crowdsourced purchase reports** (did it arrive, did it match the ad). This probably needs user accounts, which are a non-goal for the MVP, so it's parked. *Source: old brief, "later" list.*
+- **Marketplace presence:** "this product is also sold on Amazon, with buyer protection". *Source: old brief, "later" list.*
+- **Crowdsourced purchase reports** (did it arrive, did it match the ad). Needs user accounts, which are a non-goal. *Source: old brief, "later" list.*
+- **Plain-English LLM summary of the result.** Skipped: the reasons list already explains the score, and a summary adds cost to every check. *Source: 2026-11-26.*
 
 ## Engineering (any phase, when it pays off)
 
-- **A dedicated Cloud Run runtime service account** with only secret-read access. The default compute account currently also holds the Cloud Run Builder role (needed for source deploys), so the running app has more permissions than it needs. *Source: Phase 2 deploy.*
-- **Keep the instance warm** once there are real users: a Cloud Scheduler job calling `/api/warmup` every ~10 minutes removes the ~5 s cold start (confirm Scheduler's free allowance first); `min-instances 1` if a guarantee is worth paying for. *Source: decision of 2026-11-24.*
-- **Automatic deploys** (GitHub Actions or a Cloud Build trigger on push to `main`) once the manual deploy feels stable. *Source: Phase 2 decisions.*
-
-- **CI:** a GitHub Actions workflow that runs `pytest` and the web build on every push to `main`.
+- **A dedicated Cloud Run runtime service account**: no longer needed once the app moves to the VM in Phase 3 (then: remove the Cloud Run service and the extra role). *Source: Phase 2 deploy.*
+- **Cold starts:** go away on an always-on VM (Phase 3). Then decide whether `/api/warmup` is still needed. *Source: decision of 2026-11-24.*
+- **CI and automatic deploys:** now part of Phase 3. *Source: Phase 2 decisions.*
 - **Web page tests** (Vitest + React Testing Library), once the page has logic worth testing. *Source: old OPEN_QUESTIONS.md.*
 - **Investigate the Instagram Graph API "Business Discovery" endpoint** for public business/creator account data. Not verified yet: it likely needs a Meta app, an Instagram professional account, and App Review. *Source: Phase 1 research.*

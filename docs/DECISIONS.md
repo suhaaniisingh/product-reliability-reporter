@@ -332,3 +332,99 @@ Suhaani approved all of these at once, before the build started.
   - "Contact found" now means **working** contact; the points are unchanged (+5 / −10).
 - **Rejected:** SMTP mailbox probing (unreliable, and treated as spammer behaviour), paid carrier lookups, contacting the store.
 - **Limit:** a real Gmail address costs nothing, so this filters out fake-looking details but can't prove trustworthiness.
+
+## 2026-11-26: Direction change: a backend-focused project
+
+- **Decided by:** Suhaani.
+- **Chose:** the project's depth moves to **backend engineering**: background jobs, caching and deduplication, retries and per-source limits, a Postgres data model with score history, DevOps, and measured performance. ML becomes a separate, later project.
+- **Why:** the target roles are backend / SWE / cloud. A small ML component bolted onto this product would be shallow, while the product genuinely needs the backend pieces: checks are slow and depend on unreliable outside sources, popular stores get checked repeatedly, and score history needs a database.
+- **Out of scope now:** training classifiers or learned scoring models, the 200–300-store labelled dataset and the F1 phase, the @handle ML matcher, multimodal extraction (screenshots, OCR, transcription), image-based dropshipping detection, and LLM extraction as the headline (it stays as a caption → store helper).
+- **Still in scope:** the trust score from public signals with a reason for every point; a ~100-store validation check (a step, not a phase); the Chrome extension and the paste-link page.
+- **Alternatives considered:** (a) making ML the core of this project (a scam-site detector, with the rule score as a baseline); (b) an image-based product matcher; (c) a short-video recommender as a new project. Set aside in favour of a separate ML project.
+
+## 2026-11-26: Only build backend machinery the product needs
+
+- **Rule:** every backend piece must serve something a user notices (speed, reliability, history) or something we must prove. Nothing is added just to show a technology.
+- **Kept, with the product reason:**
+  - **Background jobs + polling:** a Chrome popup is destroyed when the user clicks away, which kills a waiting request; jobs also let results appear one by one.
+  - **Cache per store:** popular stores get checked repeatedly; answers become instant; fewer calls to quota- and rate-limited sources (Safe Browsing, RDAP).
+  - **Deduplication:** a viral video sends many viewers to check the same store at the same moment.
+  - **Postgres:** score history needs a database.
+  - **Retries:** fewer false "couldn't check" results.
+  - **Per-source limits:** politeness and quotas.
+  - **Load test:** the proof that caching and deduplication work.
+- **One datastore: Postgres** for the jobs (`SELECT … FOR UPDATE SKIP LOCKED`), the cache (latest result with an expiry), deduplication (a unique constraint) and history. **No Redis** until a measurement shows a need. *Why:* one thing to run, host for free and explain. *Alternative:* Redis with RQ/Celery/arq: faster for very high job rates, which this project won't have. In production, Postgres-backed queues are common at moderate scale (e.g. Rails' Solid Queue, Elixir's Oban).
+- **Polling, not push:** `GET /api/checks/{id}`. *Alternatives:* server-sent events or WebSockets. More moving parts for a check that takes ~5–12 s.
+- **Not doing:** Redis, extra services, WebSockets, multiple instances, Kubernetes. Each can be revisited if a measurement shows a need.
+- **Table naming: `stores`, not "sellers".** We only ever know a store by its domain; a separate seller record would have no data behind it.
+- **The LLM summary is skipped.** The reasons list already explains the score, and a summary adds cost to every check.
+- **Extraction eval tooling is frozen,** not deleted. It still backs up the helper's accuracy numbers.
+
+## 2026-11-26: New phase order
+
+- **Order:**
+  - 3: DevOps foundation (compose, CI/CD, the server);
+  - 4: jobs and data model;
+  - 5: reliability and score validation;
+  - 6: caching, deduplication and measured performance;
+  - 7: extension.
+  - Phases 1–2 keep their numbers.
+- **Changes from Suhaani's first draft, with reasons:**
+  - **CI first.** Tests should run automatically *before* Phase 4 rewires the request flow, not after. Real teams set up CI on day one of a service.
+  - **No fake skeleton.** The signals and scorer already exist, so the jobs phase runs the real checks from the start. Retries move to the reliability phase.
+  - **Validate the score before caching and history.** If the ~100-store check means the weights must change, better before months of snapshots exist (snapshots also record the scorer version).
+  - **Baseline load test immediately before caching**, in the same phase. With the load test last there would be no "before" number.
+  - **Keep phase numbers 1–2.** Commit messages and docs refer to them; renumbering would break those references.
+- **The server setup and automatic deploys moved into Phase 3** (first proposed for Phase 4) once a self-managed VM was chosen. The server is then ready before the database and the jobs need it, and Phase 4 stays focused on the jobs.
+
+## 2026-11-26: Hosting: a self-managed always-free VM
+
+- **Decided by:** Suhaani.
+- **Options:**
+  - (a) Cloud Run with "CPU always allocated" billing, a worker inside the app, and a free hosted Postgres;
+  - **(b) an always-free VM running our docker-compose**;
+  - (c) another free platform host.
+- **Chose:** (b). The provider will be picked in Phase 3, after researching current free tiers (limits, reliability, card requirements, rules for reclaiming idle machines).
+- **Why:**
+  - The worker needs a process that keeps running. Cloud Run, as configured, gives CPU only during requests.
+  - A VM runs the app, the worker and Postgres together, exactly as docker-compose does locally.
+  - Suhaani wants hands-on DevOps.
+  - No cold starts.
+- **Trade-offs we take on:**
+  - OS security updates, the firewall, HTTPS (a reverse proxy and a domain name), getting secrets onto the server, database backups.
+  - Uptime is ours: if the machine goes down, the app goes down.
+  - Cloud Run did all of this for us.
+- **Transition:** the current Cloud Run deploy stays live until the VM takes over in Phase 3.
+
+## 2026-11-26: DevOps is written by Suhaani; database tests use a real Postgres
+
+- **DevOps:** Suhaani writes `docker-compose.yml`, the GitHub Actions workflows and the server setup. Claude explains each piece first and reviews after. *Why:* she needs to be able to defend and debug this in interviews, which only comes from writing it.
+- **Database tests run against a real Postgres** (docker-compose locally, a service container in CI), not mocks. *Why:* a mock can't reproduce locking, constraints, transactions or `SKIP LOCKED`, which is exactly what the queue and deduplication rely on. *Alternative:* SQLite in tests. It behaves differently from Postgres in exactly those areas.
+
+## 2026-11-26: Database access: SQLAlchemy 2.0 + Alembic
+
+- **Decided by:** Suhaani.
+- **Chose:**
+  - **SQLAlchemy 2.0** in async mode: the ORM for ordinary reads and writes, and its SQL expression layer (Core) where we need specific SQL, e.g. the queue's `with_for_update(skip_locked=True)`.
+  - **Alembic** for versioned migrations.
+- **Why:** the most widely used Python database stack, and the one job posts name. Migrations make every schema change reviewable and repeatable on every machine and on the server.
+- **Alternatives:**
+  - raw SQL with psycopg 3 or asyncpg: full control, more hand-written code;
+  - SQLModel: a thin layer on SQLAlchemy, less mature;
+  - Tortoise ORM: less common.
+- **Note:** plain SQL is still written widely in industry: for performance-critical queries, migrations, analytics and debugging. ORMs generate SQL, and reading it (`EXPLAIN`) is part of using one well.
+- **The async driver is still open** (asyncpg or psycopg 3). It's decided at the start of Phase 4.
+
+## 2026-11-26: API rename: `/api/scan` → `/api/checks`
+
+- **Chose:** `POST /api/checks` creates a check and returns `202 Accepted` with its ID; `GET /api/checks/{id}` returns its status and results so far. `/api/scan` is removed once the page uses the new endpoints.
+- **Why:** a check is now a resource with an ID and a lifecycle, so it has its own URL; 202 is the standard "accepted, still processing" response. The only client is our own page, so there's nothing to stay compatible with.
+
+## 2026-11-26: Extension design: the current tab or selected text, no screenshots
+
+- **Supersedes:** the user-driven capture sessions (planned 2026-11-24), which sent screenshots for an LLM to read. That's multimodal extraction, now out of scope.
+- **Chose:** the extension checks the store page in the current tab, or text the user selects and right-clicks ("Check this store").
+- **Why:**
+  - Least privilege: likely just `activeTab` and `contextMenus`, confirmed in Phase 7.
+  - No page reading, so no platform-terms question.
+  - No per-capture LLM cost.

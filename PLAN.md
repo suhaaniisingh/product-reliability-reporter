@@ -10,6 +10,8 @@ The existing repo is a walking skeleton from the old brief: `POST /api/check` re
 
 Research on 2026-11-23 showed that TikTok's and Instagram's oEmbed endpoints **no longer return captions or creators**, and Meta's terms forbid extracting them from the embed HTML. So the user pastes the caption and/or the store link. The caption survey step was considered and **dropped**: the eval set is drafted by case type instead.
 
+**Direction change (2026-11-26).** The project is now **backend-focused**; ML is a separate, later project. Out: training models, the large labelled dataset and the F1 phase, multimodal extraction (screenshots, OCR, transcription), dropshipping detection, and LLM extraction as the headline (it stays as a helper). In: background jobs, caching and deduplication, retries and per-source limits, a Postgres data model with score history, DevOps that Suhaani sets up herself, measured performance, a ~100-store validation check, and the extension. Phases 1–2 keep their numbers; the new phases continue from 3. See `CLAUDE.md` and `docs/DECISIONS.md` (2026-11-26).
+
 ## How each phase runs (the approval loop)
 
 1. **Propose.** At the start of a phase, I post that phase's decisions: options, my recommendation, and why. Nothing is built until you approve. Approved decisions are logged in `docs/DECISIONS.md`.
@@ -25,12 +27,13 @@ Research on 2026-11-23 showed that TikTok's and Instagram's oEmbed endpoints **n
 
 | Phase | Status | Key metric |
 |---|---|---|
-| 1. Extraction pipeline | **Approved and pushed 2026-11-24** | Held-out: store 100% on both splits; all fields 90% (test) → 100% (test2, after hashtag fix) |
-| 2. Trust signals + rule-based score | **Approved and pushed 2026-11-25** (live on Cloud Run) | Deployed URL returns score + reasons |
-| 3. Labelled dataset + evaluation | Not started | F1: rules vs. learned model |
-| 4. Chrome extension | Not started | Works on real TikTok/Instagram pages |
-| 5. Systems hardening | Not started | p95 latency, cache hit rate (before/after) |
-| 6. Stretch | Not started | TBD |
+| 1. Caption → store extraction helper | **Approved and pushed 2026-11-24** | Held-out: store 100% on both splits; all fields 90% (test) → 100% (test2, after hashtag fix) |
+| 2. Trust signals + rule-based score + first deploy | **Approved and pushed 2026-11-25** (live on Cloud Run) | Deployed URL returns score + reasons |
+| 3. DevOps foundation: containers, CI/CD, the server | Not started | Push → green CI → automatic deploy to the VM over HTTPS |
+| 4. Checks as background jobs + data model | Not started | Every check runs as a job and is stored |
+| 5. Reliability + score validation | Not started | Per-source failure rate before/after retries; score separation on ~100 stores |
+| 6. Caching, deduplication, measured performance | Not started | p95 latency, throughput, cache hit rate (before/after) |
+| 7. Chrome extension | Not started | Works on real store and TikTok/Instagram pages |
 
 ---
 
@@ -135,49 +138,59 @@ The cases where the user supplies their own store link don't involve the LLM, so
   - the free host (researched then)
 - **Done when:** a deployed URL returns a score with reasons for a real store.
 
-## Phase 3: Labelled dataset + evaluation (outline)
+## Phase 3: DevOps foundation: containers, CI/CD, the server (outline)
 
-- **Decisions I'll propose:** label sources for 200–300 stores (public scam-domain lists plus known-legit stores), the feature set, the train/test split or cross-validation, and the learned model (e.g. logistic regression).
-- **Also to discuss at the start of Phase 3 (Suhaani, 2026-11-25):** the @handle feature. That covers extracting the brand's @handle from the caption, finding candidate store sites for it, checking that each site links back to the handle, and possibly a learned matcher that scores how likely a handle and a website belong to the same brand.
-- **Done when:** precision, recall, F1 and a confusion matrix are reproducible for both the rules and the model, written up in `docs/EVALUATION.md`.
-
-## Phase 4: Chrome extension (outline)
-
-- **Design: user-driven capture sessions (Suhaani, 2026-11-24).** This replaces the automatic recorder idea.
-  1. **Start investigation** from the extension's popup.
-  2. **Capture:** the user presses a keyboard shortcut or the popup's Capture button on anything useful (the reel's frame, the brand's profile and bio, the store page). Each capture is a screenshot (`chrome.tabs.captureVisibleTab`) plus that tab's URL. The icon badge shows a count, and a checklist in the popup shows what's still missing (video / brand profile / store page).
-  3. **Finish & analyse:** the screenshots and URLs go to the server. Claude reads them for brand, product, @handle and store; then come the link-back check, the five trust checks, the score, and a summary grounded in the reasons.
-  4. **A single capture + finish is a normal quick scan**, so one flow covers both simple and multi-page investigations.
-- **Why this design:**
-  - privacy (only what the user chooses);
-  - platform terms (user-initiated screenshots, not automated collection);
-  - **least privilege:** `activeTab` (granted by the icon click or the shortcut) is enough for the screenshot and the URL, with no permission to read all sites;
-  - cost proportional to the captures;
-  - simpler to build and test.
-- **Constraints:** a session cap (about 8 captures, ~$0.003 each); crop where possible; never store images; say in the result when evidence was thin; desktop Chrome only; read TikTok's and Instagram's terms before building.
+Suhaani writes the DevOps files and sets up the server; Claude explains each piece first and reviews after.
 
 - **Decisions I'll propose:**
-  - the permissions needed, with an explanation of each
-  - how the caption is obtained (a terms check on reading the page first; see BACKLOG)
+  - the VM provider (free tiers researched first: limits, reliability, card requirements, idle-reclaim rules)
+  - the server setup: OS updates, SSH keys only, firewall, a non-root deploy user
+  - HTTPS: a reverse proxy (e.g. Caddy) and a domain name (a free option, or a cheap domain)
+  - how secrets reach the server (instead of Secret Manager)
+  - the CI workflow: tests, lint, the web build, and a Postgres service container
+  - the deploy step: how GitHub Actions ships a new version to the VM, and how to roll back
+- **Done when:** a push to `main` runs CI and, when green, deploys to the VM, which serves the app over HTTPS. Cloud Run is retired.
+
+## Phase 4: Checks as background jobs + data model (outline)
+
+- **Already decided (2026-11-26):** Postgres for jobs, cache and history (no Redis); polling (no push); SQLAlchemy 2.0 + Alembic; `/api/scan` → `/api/checks`; a `stores` table (not "sellers"); database tests against a real Postgres.
+- **Decisions I'll propose:**
+  - the schema: tables, keys, indexes, what each row means
+  - the queue: our own on `SKIP LOCKED` vs a library (open question 4); leases for jobs whose worker crashed
+  - where the worker runs (open question 5)
+  - the async database driver
+  - the API shape: statuses, partial results, errors
+  - how the page polls (interval, when to stop)
+- **Done when:** the deployed app runs checks as jobs and stores every result.
+
+## Phase 5: Reliability + score validation (outline)
+
+- **Decisions I'll propose:**
+  - which errors are retried (transient only), how many times, and the backoff with jitter
+  - per-source concurrency limits
+  - the structured log format and what gets logged
+  - more blocklists, if their terms allow (URLhaus, PhishTank, OpenPhish researched first)
+  - where the ~100 known-scam and known-legit stores come from, and how to handle scam sites that have already gone offline
+- **Done when:** the per-source failure rate (before/after retries) and the score-separation numbers are recorded.
+
+## Phase 6: Caching, deduplication, measured performance (outline)
+
+- **First step:** a baseline load test before changing anything.
+- **Decisions I'll propose:**
+  - the load-test tool (k6 or Locust) and the traffic mix
+  - cache expiry per signal (Safe Browsing minutes to hours; domain age days)
+  - how deduplication works when two checks of one store arrive together
+  - how the page shows score history and "checked X ago / re-check"
+- **Done when:** before/after p95 latency, throughput and cache hit rate are in `docs/METRICS.md`.
+
+## Phase 7: Chrome extension (outline)
+
+- **Design (2026-11-26):** check the store page in the current tab, or right-click selected caption text → "Check this store". This replaces the screenshot capture sessions (multimodal extraction is out of scope).
+- **Decisions I'll propose:**
+  - permissions (expected: `activeTab` and `contextMenus`), with an explanation of each
   - the build tooling
-  - how the popup calls the deployed API
-- **Done when:** an unpacked extension works on real TikTok and Instagram pages.
-
-## Phase 5: Systems hardening (outline)
-
-- **First step:** measure baseline p95 latency with a load-test script before changing anything.
-- **Decisions I'll propose:**
-  - the job model (async jobs, parallel fetchers)
-  - timeout and retry policy
-  - the cache store and TTLs
-  - deduplication of concurrent scans of the same domain
-  - rate limiting
-  - whether Postgres/Redis are needed and their free hosting
-- **Done when:** before/after p95 latency and cache hit rate are recorded in `docs/METRICS.md`.
-
-## Phase 6: Stretch (outline)
-
-- Research options for dropshipping/markup detection (e.g. CLIP image embeddings) and a PWA share target, then discuss before building anything.
+  - how the popup calls the API and keeps the check ID when the popup closes
+- **Done when:** an unpacked extension works on real store pages and TikTok/Instagram pages.
 
 ---
 
