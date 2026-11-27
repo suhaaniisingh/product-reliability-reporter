@@ -41,7 +41,7 @@ jobs:
       DATABASE_URL: postgresql://reporter:ci-only-password@localhost:5432/reporter
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.4.0 # this action publishes exact versions only (no "v10" tag)
         with:
           enable-cache: true # reuse downloaded packages between runs (keyed on uv.lock)
       - name: Install dependencies (exact versions from uv.lock)
